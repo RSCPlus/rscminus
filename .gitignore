@@ -1,0 +1,30 @@
+# Ignore image thumbnail files created by windows
+Thumbs.db
+# Ignore Finder view option files created by OS X
+.DS_Store
+# Ignore files output by build
+/[Bb]in/
+/[Bb]uild/
+/[Dd]ist/
+/[Dd]oc/
+# Ignore files created by posix people
+*~
+# Ignore vim swapfiles
+*.swp
+# Ignore user specific SonarQube files
+sonar-project.properties
+.sonar/
+.scannerwork/
+org.sonarlint.eclipse.core.prefs
+# Ignore IntelliJ generated files
+/.idea/
+*.iml
+*.eml
+# Ignore server assets
+/content0_229aa476
+/content4_ffffffffaaca2b0d
+/content5_6a1d6b00
+/client.pem
+/server.pem
+/objects.bin
+/wallObjects.bin
