@@ -69,8 +69,8 @@ public class SaveInfo {
         skinColor = 0;
 
         // Initialize position
-        x = 279;
-        y = 493;
+        x = 61;
+        y = 440;
         //x = 280;
         //y = 498;
 

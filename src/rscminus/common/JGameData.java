@@ -293,8 +293,16 @@ public class JGameData {
         String mapName = "m" + floor + x / 10 + x % 10 + y / 10 + y % 10;
 
         JContentFile map = content.unpack(mapName + ".dat");
-        if (map == null)
+        if (map == null) {
+            // Initialize collisions to collidable
+            for (int i = 0; i < Game.REGION_SIZE; i++)
+                regionCollisionMask[x][y][floor][i] = Game.COLLISION_TILE;
             return false;
+        }
+
+        // Clear collisions
+        for (int i = 0; i < Game.REGION_SIZE; i++)
+            regionCollisionMask[x][y][floor][i] = Game.COLLISION_NONE;
 
         for (int i = 0; i < Game.REGION_SIZE; i++) {
             int id = map.readUnsignedByte();
