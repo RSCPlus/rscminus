@@ -122,9 +122,6 @@ public class WalkingQueue {
     public void add(int x, int y) {
         if (m_count == MAX_SIZE)
             return;
-        // TODO: Confirm server drops waypoints on the same tile
-        if (m_count >= 1 && x == m_x[m_count - 1] && y == m_y[m_count - 1])
-            return;
         m_x[m_count] = x;
         m_y[m_count] = y;
         m_count++;

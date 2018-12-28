@@ -621,6 +621,7 @@ public class Player extends Entity {
                 if (startX == getX() && startY == getY())
                     break;
                 m_actionSlot.setAction(ActionSlot.ACTION_WALK);
+                m_actionSlot.getWalkingQueue().clear();
                 m_actionSlot.getWalkingQueue().add(startX, startY);
                 int waypoints = (length - 5) / 2;
                 for (int i = 0; i < waypoints; i++) {
