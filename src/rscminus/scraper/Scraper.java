@@ -429,8 +429,6 @@ public class Scraper {
                 value = handleWallObjectIDConflict(m_wallObjects.get(key), value);
             m_wallObjects.put(key, value);
         }
-
-        replay.dump("out.bin");
     }
 
     private static void scrapeDirectory(String path) {
