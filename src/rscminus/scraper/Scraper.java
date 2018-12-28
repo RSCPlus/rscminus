@@ -294,8 +294,10 @@ public class Scraper {
                 break;
             int length = replay.readPacketLength();
 
-            if (length == 0)
+            if (length == 0) {
+                loggedIn = false;
                 continue;
+            }
 
             if (replay.available() < length)
                 break;
@@ -304,9 +306,6 @@ public class Scraper {
             length--;
 
             switch (opcode) {
-                case PacketBuilder.OPCODE_SKIP_TUTORIAL:
-                    loggedIn = false;
-                    break;
                 case PacketBuilder.OPCODE_FLOOR_SET:
                     replay.skip(2);
                     planeX = replay.readUnsignedShort();
