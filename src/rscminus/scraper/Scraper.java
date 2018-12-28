@@ -323,9 +323,6 @@ public class Scraper {
                     fillView(playerX, playerY, objects);
                     replay.skip(length - 3);
                     break;
-                case PacketBuilder.OPCODE_UPDATE_PLAYERS:
-
-                    break;
                 case PacketBuilder.OPCODE_OBJECT_HANDLER:
                     while (length > 0) {
                         if (replay.readUnsignedByte() == 255) {
