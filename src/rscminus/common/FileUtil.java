@@ -23,6 +23,10 @@ import java.io.File;
 import java.nio.file.Files;
 
 public class FileUtil {
+    public static void mkdir(String path) {
+        new File(path).mkdirs();
+    }
+
     public static byte[] readFull(File f) {
         try {
             return Files.readAllBytes(f.toPath());

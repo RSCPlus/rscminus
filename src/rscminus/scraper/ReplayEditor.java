@@ -146,8 +146,6 @@ public class ReplayEditor {
                         in.writeInt(-1);
                     }
 
-                    System.out.println("timestamp: " + packet.timestamp + ", lastTimestamp: " + lastTimestamp);
-
                     disconnectCount++;
                     in.writeInt(packet.timestamp);
                     in.writeInt(1);

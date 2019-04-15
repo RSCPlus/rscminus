@@ -80,15 +80,7 @@ public class ReplayReader {
         LinkedList<Integer> timestamps = new LinkedList<Integer>();
         for (int offset : m_disconnectOffsets)
             timestamps.add(findTimestamp(offset));
-
-        // Remove duplicates
-        timestamps = new LinkedList<Integer>(new LinkedHashSet<Integer>(timestamps));
-
-        for (int offset : timestamps) {
-            System.out.println("Offsetz: " + offset);
-        }
-
-        return timestamps;
+        return new LinkedList<Integer>(new LinkedHashSet<Integer>(timestamps));
     }
 
     public ReplayPacket readPacket(boolean outgoing, LinkedList<Integer> timestamps) {
@@ -105,7 +97,6 @@ public class ReplayReader {
             int timestamp = findTimestamp(m_position);
             int disconnectTimestamp = timestamps.get(0);
             if (timestamp >= disconnectTimestamp) {
-                System.out.println("Reconnecting out.bin: " + timestamp + ", " + disconnectTimestamp);
                 timestamps.remove(0);
                 m_loggedIn = false;
             }

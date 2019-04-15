@@ -19,6 +19,7 @@
 
 package rscminus.scraper;
 
+import rscminus.common.FileUtil;
 import rscminus.game.PacketBuilder;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
@@ -34,6 +35,13 @@ public class Scraper {
     private static HashMap<Integer, Integer> m_wallObjects = new HashMap<Integer, Integer>();
 
     private static final int OBJECT_BLANK = 65536;
+
+    // Settings
+    private static String sanitizePath = "replays";
+    private static String sanitizeOutputPath = "sanitized";
+    private static boolean sanitizePublicChat = true;
+    private static boolean sanitizePrivateChat = true;
+    private static boolean sanitizeFriendsIgnore = true;
 
     private static boolean objectIDBlacklisted(int id, int x, int y) {
         boolean blacklist = false;
@@ -270,7 +278,115 @@ public class Scraper {
     }
 
     private static void sanitizeReplay(String fname) {
-        // TODO: Sanitize replay
+        ReplayEditor editor = new ReplayEditor();
+        editor.importData(fname);
+
+        System.out.println(fname);
+
+        // Process incoming packets
+        LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
+        for (ReplayPacket packet : incomingPackets) {
+            switch (packet.opcode) {
+                case PacketBuilder.OPCODE_UPDATE_PLAYERS:
+                {
+                    int originalPlayerCount = packet.readUnsignedShort();
+                    int playerCount = originalPlayerCount;
+                    for (int i = 0; i < originalPlayerCount; i++) {
+                        int startPosition = packet.tell();
+                        int pid = packet.readUnsignedShort();
+                        int updateType = packet.readUnsignedByte();
+                        if (updateType == 0) {
+                            packet.skip(2);
+                        } else if (updateType == 1) {
+                            packet.skip(1);
+                            packet.readRSCString();
+
+                            // Strip Chat
+                            if (sanitizePublicChat) {
+                                int trimSize = packet.tell() - startPosition;
+                                packet.skip(-trimSize);
+                                packet.trim(trimSize);
+                                playerCount--;
+                                continue;
+                            }
+                        } else if (updateType == 2) {
+                            packet.skip(3);
+                        } else if (updateType == 3) {
+                            packet.skip(4);
+                        } else if (updateType == 4) {
+                            packet.skip(4);
+                        } else if (updateType == 5) {
+                            packet.skip(2);
+                            packet.readPaddedString();
+                            packet.readPaddedString();
+                            int equipCount = packet.readUnsignedByte();
+                            packet.skip(equipCount);
+                            packet.skip(6);
+                        } else if (updateType == 6) {
+                            packet.readRSCString();
+                        } else {
+                            packet.skip(2);
+                            packet.readPaddedString();
+                            packet.readPaddedString();
+                            packet.skip(1);
+                        }
+                    }
+
+                    // Rewrite player count
+                    if (originalPlayerCount != playerCount) {
+                        if (playerCount == 0) {
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        } else {
+                            packet.seek(0);
+                            packet.writeUnsignedShort(playerCount);
+                        }
+                    }
+                    break;
+                }
+                case PacketBuilder.OPCODE_SET_IGNORE:
+                case PacketBuilder.OPCODE_UPDATE_IGNORE:
+                case PacketBuilder.OPCODE_UPDATE_FRIEND:
+                    if (sanitizeFriendsIgnore)
+                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                    break;
+                case PacketBuilder.OPCODE_RECV_PM:
+                case PacketBuilder.OPCODE_SEND_PM:
+                    if (sanitizePrivateChat)
+                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Process outgoing packets
+        LinkedList<ReplayPacket> outgoingPackets = editor.getOutgoingPackets();
+        for (ReplayPacket packet : outgoingPackets) {
+            switch (packet.opcode) {
+                case 216: // Send chat message
+                    if (sanitizePublicChat)
+                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                    break;
+                case 218: // Send private message
+                    if (sanitizePrivateChat)
+                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                    break;
+                case 167: // Remove friend
+                case 195: // Add friend
+                case 241: // Remove ignore
+                case 132: // Add ignore
+                    if (sanitizeFriendsIgnore)
+                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        String outDir = fname.replaceFirst(sanitizePath, sanitizeOutputPath);
+        outDir = new File(outDir).toPath().toAbsolutePath().toString();
+        FileUtil.mkdir(outDir);
+        editor.exportData(outDir);
     }
 
     private static void scrapeReplay(String fname) {
@@ -463,124 +579,21 @@ public class Scraper {
     }
 
     public static void main(String args[]) {
-        ReplayEditor editor = new ReplayEditor();
-        //editor.importData("/home/ornox/Sources/RSC-Plus-Replays/ornox/08-05-2018 23.43.03");
-        //editor.importData("/home/ornox/Sources/RSC-Plus-Replays/Logg/Tylerbeg/08-05-2018 23.44.32 dryanor, dance with ornox");
-        editor.importData("/home/ornox/Sources/RSC-Plus-Replays/Logg/Tylerbeg/06-20-2018 23.00.27 watch beals thieve");
-        //editor.importData("/home/ornox/Sources/RSC-Plus-Replays/Zephyr/08-05-2018 16.59.13 eating a pumpkin");
-        //editor.importData("/home/ornox/Sources/RSC-Plus-Replays/Logg/Tylerbeg/05-29-2018 02.30.19 short crash friends list");
-        //editor.importData("/home/ornox/Sources/rscminus/out");
+        sanitizePath = new File(sanitizePath).toPath().toAbsolutePath().toString();
+        sanitizeOutputPath = new File(sanitizeOutputPath).toPath().toAbsolutePath().toString();
+        FileUtil.mkdir(sanitizePath);
+        FileUtil.mkdir(sanitizeOutputPath);
 
-        System.out.println("Version: " + editor.getReplayVersion().version);
-        editor.getReplayVersion().version = 3;
+        // Set sanitize settings and begin sanitizing
+        sanitizePublicChat = true;
+        sanitizePrivateChat = true;
+        sanitizeFriendsIgnore = true;
+        sanitizeDirectory(sanitizePath);
 
-        // Process incoming packets
-        LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
-        for (ReplayPacket packet : incomingPackets) {
-            switch (packet.opcode) {
-                case PacketBuilder.OPCODE_UPDATE_PLAYERS:
-                {
-                    int originalPlayerCount = packet.readUnsignedShort();
-                    int playerCount = originalPlayerCount;
-                    System.out.println("count: " + playerCount);
-                    for (int i = 0; i < originalPlayerCount; i++) {
-                        int startPosition = packet.tell();
-                        int pid = packet.readUnsignedShort();
-                        int updateType = packet.readUnsignedByte();
-                        if (updateType == 0) {
-                            packet.skip(2);
-                        } else if (updateType == 1) {
-                            packet.skip(1);
-                            packet.readRSCString();
+        scrapeDirectory(sanitizePath);
 
-                            // Strip Chat
-                            int trimSize = packet.tell() - startPosition;
-                            packet.skip(-trimSize);
-                            packet.trim(trimSize);
-                            playerCount--;
-                            continue;
-                        } else if (updateType == 2) {
-                            packet.skip(3);
-                        } else if (updateType == 3) {
-                            packet.skip(4);
-                        } else if (updateType == 4) {
-                            packet.skip(4);
-                        } else if (updateType == 5) {
-                            packet.skip(2);
-                            packet.readPaddedString();
-                            packet.readPaddedString();
-                            int equipCount = packet.readUnsignedByte();
-                            packet.skip(equipCount);
-                            packet.skip(6);
-                        } else if (updateType == 6) {
-                            packet.readRSCString();
-                        } else {
-                            packet.skip(2);
-                            packet.readPaddedString();
-                            packet.readPaddedString();
-                            packet.skip(1);
-                        }
-                        System.out.println("pid: " + pid + ", updateType: " + updateType);
-                    }
-
-                    // Rewrite player count
-                    if (originalPlayerCount != playerCount) {
-                        if (playerCount == 0) {
-                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                        } else {
-                            packet.seek(0);
-                            packet.writeUnsignedShort(playerCount);
-                        }
-                    }
-                    break;
-                }
-                case PacketBuilder.OPCODE_SET_IGNORE:
-                case PacketBuilder.OPCODE_UPDATE_IGNORE:
-                case PacketBuilder.OPCODE_UPDATE_FRIEND:
-                case PacketBuilder.OPCODE_RECV_PM:
-                case PacketBuilder.OPCODE_SEND_PM:
-                    packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        // Process outgoing packets
-        LinkedList<ReplayPacket> outgoingPackets = editor.getOutgoingPackets();
-        for (ReplayPacket packet : outgoingPackets) {
-            switch (packet.opcode) {
-                case 216: // Send chat message
-                case 218: // Send private message
-                case 167: // Remove friend
-                case 195: // Add friend
-                case 241: // Remove ignore
-                case 132: // Add ignore
-                    System.out.println("Removed: " + packet.opcode);
-                    packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                    break;
-                default:
-                    System.out.println("Opcode: " + packet.opcode);
-                    break;
-            }
-        }
-
-        editor.exportData("/home/ornox/Sources/rscminus/out");
-
-        //scrapeReplay("/home/ornox/Sources/rscminus/out");
-        //scrapeReplay("/home/ornox/Sources/Sanitize-Replays/ornox/08-04-2018 22.14.20");
-
-        //sanitizeReplay("/home/ornox/Sources/Sanitize-Replays/ornox/08-04-2018 22.14.20");
-        //scrapeDirectory("/home/ornox/Sources/RSC-Plus-Replays/");
-
-        //scrapeReplay("C:\\Users\\xtraf\\Downloads\\Warrior\\RSC-Plus-Replays-master\\Logg\\Tylerbeg\\07-24-2018 23.17.54 agility, fatigued messages");
-        //scrapeReplay("C:\\Users\\xtraf\\Downloads\\Warrior\\RSC-Plus-Replays-master\\Logg\\Tylerbeg\\07-18-2018 08.28.02 logging in to screenshot stats");
-        //scrapeReplay("C:\\Users\\xtraf\\Downloads\\Warrior\\RSC-Plus-Replays-master\\Logg\\Tylerbeg\\07-26-2018 22.21.04 6 minutes of nothing");
-        //scrapeReplay("C:\\Users\\xtraf\\Documents\\GitHub\\RSC-Plus-Replays-master\\RSC 2001\\LAST 2 DAYS REPLAYS (ACCOUNT 1)\\08-06-2018 05.01.43");
-        //scrapeReplay("C:\\Users\\xtraf\\Documents\\GitHub\\RSC-Plus-Replays-master\\RSC 2001\\LAST 2 DAYS REPLAYS (ACCOUNT 1)\\flying sno train - 08-05-2018 22.55.55");
-        //scrapeReplay("C:\\Users\\xtraf\\Downloads\\Warrior\\RSC-Plus-Replays-master\\Logg\\Tylerbeg\\07-19-2018 10.15.33 more underground pass");
-        dumpObjects("objects.bin");
-        dumpWallObjects("wallobjects.bin");
+        dumpObjects(sanitizeOutputPath + "/objects.bin");
+        dumpWallObjects(sanitizeOutputPath + "/wallobjects.bin");
 
         return;
     }
