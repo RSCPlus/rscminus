@@ -17,21 +17,9 @@
  * Authors: see <https://github.com/OrN/rscminus>
  */
 
-package rscminus.common;
+package rscminus.scraper;
 
-import java.io.File;
-import java.nio.file.Files;
-
-public class FileUtil {
-    public static void mkdir(String path) {
-        new File(path).mkdirs();
-    }
-
-    public static byte[] readFull(File f) {
-        try {
-            return Files.readAllBytes(f.toPath());
-        } catch (Exception e) {
-            return null;
-        }
-    }
+public class ReplayVersion {
+    public int version;
+    public int clientVersion;
 }

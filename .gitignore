@@ -7,6 +7,9 @@ Thumbs.db
 /[Bb]uild/
 /[Dd]ist/
 /[Dd]oc/
+# Ignore files created by rscminus
+/[Rr]eplays/
+/[Ss]anitized/
 # Ignore files created by posix people
 *~
 # Ignore vim swapfiles
@@ -26,5 +29,3 @@ org.sonarlint.eclipse.core.prefs
 /content5_6a1d6b00
 /client.pem
 /server.pem
-/objects.bin
-/wallObjects.bin

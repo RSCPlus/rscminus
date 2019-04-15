@@ -34,13 +34,17 @@ public class PacketBuilder {
     public static final int OPCODE_PRIVACY_SETTINGS = 51;
     public static final int OPCODE_SET_INVENTORY = 53;
     public static final int OPCODE_SET_APPEARANCE = 59;
+    public static final int OPCODE_SEND_PM = 87;
     public static final int OPCODE_SET_INVENTORY_SLOT = 90;
     public static final int OPCODE_WALLOBJECT_HANDLER = 91;
     public static final int OPCODE_GROUNDITEM_HANDLER = 99;
+    public static final int OPCODE_SET_IGNORE = 109;
     public static final int OPCODE_SKIP_TUTORIAL = 111;
     public static final int OPCODE_SET_FATIGUE = 114;
+    public static final int OPCODE_RECV_PM = 120;
     public static final int OPCODE_REMOVE_INVENTORY_SLOT = 123;
     public static final int OPCODE_SEND_MESSAGE = 131;
+    public static final int OPCODE_UPDATE_FRIEND = 149;
     public static final int OPCODE_SET_EQUIP_STATS = 153;
     public static final int OPCODE_SET_STATS = 156;
     public static final int OPCODE_LOGOUT = 165;
@@ -50,6 +54,7 @@ public class PacketBuilder {
     public static final int OPCODE_PLAY_SOUND = 204;
     public static final int OPCODE_SET_PRAYERS = 206;
     public static final int OPCODE_UPDATE_PLAYERS = 234;
+    public static final int OPCODE_UPDATE_IGNORE = 237;
     public static final int OPCODE_GAME_SETTINGS = 240;
 
     private static int m_offset = 0;
