@@ -590,10 +590,10 @@ public class Scraper {
         sanitizeFriendsIgnore = true;
         sanitizeDirectory(sanitizePath);
 
-        scrapeDirectory(sanitizePath);
-
-        dumpObjects(sanitizeOutputPath + "/objects.bin");
-        dumpWallObjects(sanitizeOutputPath + "/wallobjects.bin");
+        // Scrape directory
+        //scrapeDirectory(sanitizePath);
+        //dumpObjects(sanitizeOutputPath + "/objects.bin");
+        //dumpWallObjects(sanitizeOutputPath + "/wallobjects.bin");
 
         return;
     }
