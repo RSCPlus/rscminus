@@ -282,11 +282,183 @@ public class Scraper {
         editor.importData(fname);
 
         System.out.println(fname);
+        System.out.println("version: " + editor.getReplayVersion().version);
+
+        // Game state
+        int playerPID = 0, playerX = 0, playerY = 0, playerDirection = 0;
+        String playerName = "";
+        int[] playerEquipStats = new int[Game.EQUIP_STAT_COUNT];
+        int[] playerStatsXP = new int[Game.STAT_COUNT];
+        int[] playerStatsCurrent = new int[Game.STAT_COUNT];
+        int[] playerStatsMax = new int[Game.STAT_COUNT];
+        boolean[] playerPrayer = new boolean[Game.PRAYER_COUNT];
+        int playerQuestPoints = 0;
+        int npcID = 0;
 
         // Process incoming packets
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
             switch (packet.opcode) {
+                case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
+                {
+                    playerPID = -1;
+                    playerX = -1;
+                    playerY = -1;
+                    playerDirection = -1;
+                    playerName = "";
+                    for (int i = 0; i < playerEquipStats.length; i++)
+                        playerEquipStats[i] = 0;
+                    for (int i = 0; i < playerPrayer.length; i++)
+                        playerPrayer[i] = false;
+                    for (int i = 0; i < playerStatsXP.length; i++) {
+                        playerStatsXP[i] = 0;
+                        playerStatsCurrent[i] = 0;
+                        playerStatsMax[i] = 0;
+                    }
+                    playerQuestPoints = 0;
+                    npcID = 0;
+                    break;
+                }
+                case PacketBuilder.OPCODE_SET_EQUIP_STATS:
+                {
+                    for (int i = 0; i < playerEquipStats.length; i++)
+                        playerEquipStats[i] = packet.readUnsignedByte();
+                    break;
+                }
+                case PacketBuilder.OPCODE_SET_STATS:
+                {
+                    for (int i = 0; i < playerStatsCurrent.length; i++)
+                        playerStatsCurrent[i] = packet.readUnsignedByte();
+                    for (int i = 0; i < playerStatsMax.length; i++)
+                        playerStatsMax[i] = packet.readUnsignedByte();
+                    for (int i = 0; i < playerStatsXP.length; i++)
+                        playerStatsXP[i] = packet.readUnsignedInt();
+                    playerQuestPoints = packet.readUnsignedByte();
+                    break;
+                }
+                case PacketBuilder.OPCODE_UPDATE_XP:
+                {
+                    int index = packet.readUnsignedByte();
+                    playerStatsXP[index] = packet.readUnsignedInt();
+                    break;
+                }
+                case PacketBuilder.OPCODE_UPDATE_STAT:
+                {
+                    int index = packet.readUnsignedByte();
+                    playerStatsCurrent[index] = packet.readUnsignedByte();
+                    playerStatsMax[index] = packet.readUnsignedByte();
+                    playerStatsXP[index] = packet.readUnsignedInt();
+                    break;
+                }
+                case PacketBuilder.OPCODE_CREATE_PLAYERS:
+                {
+                    packet.startBitmask();
+                    playerX = packet.readBitmask(11);
+                    playerY = packet.readBitmask(13);
+                    playerDirection = packet.readBitmask(4);
+
+                    int playerCount = packet.readBitmask(8);
+                    //System.out.println("Player Count: " + playerCount);
+                    for (int i = 0; i < playerCount; i++) {
+                        int reqUpdate = packet.readBitmask(1);
+                        if (reqUpdate != 0) {
+                            reqUpdate = packet.readBitmask(1);
+                            if (reqUpdate != 0) {
+                                int unk = packet.readBitmask(2);
+                                if (unk == 3)
+                                    continue;
+                                packet.readBitmask(2);
+                            } else {
+                                packet.readBitmask(3);
+                            }
+                        }
+                    }
+
+                    //System.out.println("Starting: " + packet.tellBitmask() + ":" + (packet.data.length * 8));
+
+                    while (packet.tellBitmask() + 24 < packet.data.length * 8) {
+                        // Other player information
+                        int pid = packet.readBitmask(11);
+                        int x = packet.readBitmask(5);
+                        int y = packet.readBitmask(5);
+                        int dir = packet.readBitmask(4);
+                        //System.out.println("PID: " + pid + ", X: " + x + ", Y: " + y + ", Dir: " + dir);
+                    }
+
+                    //System.out.println("Ending: " + packet.tellBitmask() + ":" + (packet.data.length * 8));
+
+                    packet.endBitmask();
+                    break;
+                }
+                case PacketBuilder.OPCODE_SET_PRAYERS:
+                {
+                    System.out.println(packet.data.length);
+                    for (int i = 0; i < Game.PRAYER_COUNT; i++)
+                        playerPrayer[i] = (packet.readUnsignedByte() == 1);
+                    break;
+                }
+                case PacketBuilder.OPCODE_CREATE_NPC:
+                {
+                    packet.startBitmask();
+                    int npcCount = packet.readBitmask(8);
+                    for (int i = 0; i < npcCount; i++) {
+                        int reqUpdate = packet.readBitmask(1);
+                        if (reqUpdate != 0) {
+                            int updateType = packet.readBitmask(1);
+                            if (updateType != 0) {
+                                int unk = packet.readBitmask(2);
+                                if (unk == 3)
+                                    continue;
+                                packet.readBitmask(2);
+                            }
+                        } else {
+                            int nextAnim = packet.readBitmask(3);
+                            System.out.println("nextAnim: " + nextAnim);
+                        }
+                    }
+                    //System.out.println("npcCount: " + npcCount);
+
+                    while (packet.tellBitmask() + 34 < packet.data.length * 8) {
+                        // Other player information
+                        int nid = packet.readBitmask(12);
+                        int x = packet.readBitmask(5);
+                        int y = packet.readBitmask(5);
+                        int sprite = packet.readBitmask(4);
+                        int type = packet.readBitmask(10);
+                        System.out.println("NID: " + nid + ", X: " + x + ", Y: " + y + ", Sprite: " + sprite + ", Type: " + type);
+                    }
+
+                    packet.endBitmask();
+                    break;
+                }
+                case PacketBuilder.OPCODE_UPDATE_NPC:
+                {
+                    int npcCount = packet.readUnsignedShort();
+                    for (int i = 0; i < npcCount; i++) {
+                        int nid = packet.readUnsignedShort();
+                        int updateType = packet.readUnsignedByte();
+                        if (updateType != -1) {
+                            if (updateType == 2) {
+                                //System.out.println("npcID: " + npcID);
+                                npcID = nid;
+                                //System.out.println("nid: " + nid);
+                                if (nid == npcID) {
+                                    int damage = packet.readUnsignedByte();
+                                    int curHP = packet.readUnsignedByte();
+                                    int maxHP = packet.readUnsignedByte();
+                                    boolean killingBlow = (curHP == 0);
+                                    System.out.println("npc incoming damage [" + nid + "]: " + damage + " (" + curHP + "/" + maxHP + ")");
+                                } else {
+                                    packet.skip(3);
+                                }
+                            }
+                        } else {
+                            packet.skip(2);
+                            packet.readRSCString();
+                        }
+                    }
+                    break;
+                }
                 case PacketBuilder.OPCODE_UPDATE_PLAYERS:
                 {
                     int originalPlayerCount = packet.readUnsignedShort();
@@ -294,6 +466,10 @@ public class Scraper {
                     for (int i = 0; i < originalPlayerCount; i++) {
                         int startPosition = packet.tell();
                         int pid = packet.readUnsignedShort();
+
+                        if (playerPID == -1)
+                            playerPID = pid;
+
                         int updateType = packet.readUnsignedByte();
                         if (updateType == 0) {
                             packet.skip(2);
@@ -310,14 +486,27 @@ public class Scraper {
                                 continue;
                             }
                         } else if (updateType == 2) {
-                            packet.skip(3);
+                            if (pid == playerPID) {
+                                int damage = packet.readUnsignedByte();
+                                int curHP = packet.readUnsignedByte();
+                                int maxHP = packet.readUnsignedByte();
+                                boolean killingBlow = (curHP == 0);
+                                System.out.println("incoming damage [" + playerName + "]: " + damage + " (" + curHP + "/" + maxHP + ")");
+                            } else {
+                                packet.skip(3);
+                            }
                         } else if (updateType == 3) {
-                            packet.skip(4);
+                            int sprite = packet.readUnsignedShort();
+                            int shooterID = packet.readUnsignedShort();
                         } else if (updateType == 4) {
-                            packet.skip(4);
+                            int sprite = packet.readUnsignedShort();
+                            int shooterID = packet.readUnsignedShort();
                         } else if (updateType == 5) {
                             packet.skip(2);
-                            packet.readPaddedString();
+                            if (pid == playerPID)
+                                playerName = packet.readPaddedString();
+                            else
+                                packet.readPaddedString();
                             packet.readPaddedString();
                             int equipCount = packet.readUnsignedByte();
                             packet.skip(equipCount);

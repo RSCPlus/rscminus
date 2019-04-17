@@ -19,6 +19,7 @@
 
 package rscminus.scraper;
 
+import rscminus.common.MathUtil;
 import rscminus.scraper.client.Class11;
 
 public class ReplayPacket {
@@ -28,13 +29,44 @@ public class ReplayPacket {
 
     private static Class11 stringDecrypter = new Class11(new byte[]{(byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 21, (byte) 22, (byte) 22, (byte) 20, (byte) 22, (byte) 22, (byte) 22, (byte) 21, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 3, (byte) 8, (byte) 22, (byte) 16, (byte) 22, (byte) 16, (byte) 17, (byte) 7, (byte) 13, (byte) 13, (byte) 13, (byte) 16, (byte) 7, (byte) 10, (byte) 6, (byte) 16, (byte) 10, (byte) 11, (byte) 12, (byte) 12, (byte) 12, (byte) 12, (byte) 13, (byte) 13, (byte) 14, (byte) 14, (byte) 11, (byte) 14, (byte) 19, (byte) 15, (byte) 17, (byte) 8, (byte) 11, (byte) 9, (byte) 10, (byte) 10, (byte) 10, (byte) 10, (byte) 11, (byte) 10, (byte) 9, (byte) 7, (byte) 12, (byte) 11, (byte) 10, (byte) 10, (byte) 9, (byte) 10, (byte) 10, (byte) 12, (byte) 10, (byte) 9, (byte) 8, (byte) 12, (byte) 12, (byte) 9, (byte) 14, (byte) 8, (byte) 12, (byte) 17, (byte) 16, (byte) 17, (byte) 22, (byte) 13, (byte) 21, (byte) 4, (byte) 7, (byte) 6, (byte) 5, (byte) 3, (byte) 6, (byte) 6, (byte) 5, (byte) 4, (byte) 10, (byte) 7, (byte) 5, (byte) 6, (byte) 4, (byte) 4, (byte) 6, (byte) 10, (byte) 5, (byte) 4, (byte) 4, (byte) 5, (byte) 7, (byte) 6, (byte) 10, (byte) 6, (byte) 10, (byte) 22, (byte) 19, (byte) 22, (byte) 14, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 22, (byte) 21, (byte) 22, (byte) 21, (byte) 22, (byte) 22, (byte) 22, (byte) 21, (byte) 22, (byte) 22});
     private int m_position;
+    private int m_bitmaskPosition;
 
     ReplayPacket() {
         m_position = 0;
+        m_bitmaskPosition = 0;
+    }
+
+    public void startBitmask() {
+        m_bitmaskPosition = m_position << 3;
+    }
+
+    public void endBitmask() {
+        m_position = (m_bitmaskPosition + 7) >> 3;
+    }
+
+    public int readBitmask(int size) {
+        int start = m_bitmaskPosition >> 3;
+        int bitEnd = m_bitmaskPosition + size;
+        int byteSize = ((bitEnd + 7) >> 3) - start;
+        int offset = ((start + byteSize) << 3) - bitEnd;
+        int bitmask = MathUtil.getBitmask(size);
+
+        int ret = 0;
+        for (int i = 0; i < byteSize; i++) {
+            int dataOffset = start + (byteSize - i - 1);
+            ret |= (data[dataOffset] & 0xFF) << (i << 3);
+        }
+
+        m_bitmaskPosition += size;
+        return (ret >> offset) & bitmask;
     }
 
     public int tell() {
         return m_position;
+    }
+
+    public int tellBitmask() {
+        return m_bitmaskPosition;
     }
 
     public void seek(int position) {
@@ -59,16 +91,15 @@ public class ReplayPacket {
     }
 
     public String readRSCString() {
-        // TODO: return unicode string
-        int length = data[m_position] & 0xFF;
-        if (length < 128)
-            length = readUnsignedByte();
-        else
+        int length = readUnsignedByte();
+        if (length >= 128) {
+            m_position--;
             length = readUnsignedShort() - 32768;
+        }
         byte[] byteData = new byte[length];
         int count = stringDecrypter.method240(data, 0, byteData, true, m_position, length);
         skip(count);
-        return "";
+        return new String(byteData, 0, length);
     }
 
     public String readString() {
@@ -81,8 +112,18 @@ public class ReplayPacket {
         return ret;
     }
 
+    public int readUnsignedInt() {
+        return (readUnsignedByte() << 24) | (readUnsignedByte() << 16) | (readUnsignedByte() << 8) | readUnsignedByte();
+    }
+
     public int readUnsignedShort() {
         return (readUnsignedByte() << 8) | readUnsignedByte();
+    }
+
+    public int readUnsignedShortLE() {
+        int a = readUnsignedByte();
+        int b = readUnsignedByte() << 8;
+        return b | a;
     }
 
     public byte readByte() {
