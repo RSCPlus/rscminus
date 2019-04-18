@@ -19,7 +19,10 @@
 
 package rscminus.scraper;
 
+import rscminus.common.FileUtil;
 import rscminus.common.ISAACCipher;
+import rscminus.common.Logger;
+import rscminus.common.Settings;
 import rscminus.scraper.client.Class11;
 
 import java.io.*;
@@ -96,13 +99,13 @@ public class ReplayEditor {
             while ((replayPacket = outgoingReader.readPacket(true, disconnectTimestamps)) != null)
                 m_outgoingPackets.add(replayPacket);
         } catch (Exception e) {
-            e.printStackTrace();
+            Logger.Warn(e.getMessage() + " in ReplayEditor.importData. (This usually is because the replay is unplayable/broken)");
         }
 
         return true;
     }
 
-    public void exportData(String fname) {
+    public void exportData(String fname, String originalDir) {
         // Required files
         File keysFile = new File(fname + "/keys.bin");
         File versionFile = new File(fname + "/version.bin");
@@ -243,8 +246,144 @@ public class ReplayEditor {
             }
             out.writeInt(ReplayReader.TIMESTAMP_EOF);
             out.close();
+
+            //only copy keyboard.bin if no privacy things were checked
+            //TODO: we could possibly search the sanitized text and remove it
+            //      from keyboard.bin.gz, if keyboard.bin.gz were more useful
+            //      Would have to handle backspace though.
+            if (!Settings.sanitizeFriendsIgnore &&
+                !Settings.sanitizePublicChat &&
+                !Settings.sanitizePrivateChat
+            ) {
+                File keyboardFile = new File(originalDir + "/keyboard.bin.gz");
+                if (keyboardFile.exists()) {
+                    FileUtil.copyFile(keyboardFile,new File(fname + "/keyboard.bin.gz"));
+                }
+            }
+
+            //copy mouse.bin without editing b/c nothing bad can be in it
+            File mouseFile = new File(originalDir + "/mouse.bin.gz");
+            if (mouseFile.exists()) {
+                FileUtil.copyFile(mouseFile,new File(fname + "/mouse.bin.gz"));
+            }
+
+            //copy metadata.bin if it exists, otherwise we have to generate it based on the original replay, to maintain the time created, and to handle new metadata.bin format
+            File metadataFile = new File(originalDir + "/metadata.bin");
+            if (metadataFile.exists()) {
+                FileUtil.copyFile(metadataFile,new File(fname + "/metadata.bin"));
+                if (!addConverterSettingsToMetadata(fname)) {
+                    FileUtil.copyFile(metadataFile,new File(String.format(fname + "/metadata.original.%d.bin",System.currentTimeMillis()/1000L)));
+                    checkAndGenerateMetadata(originalDir, fname);
+                }
+            } else {
+                //same function as RSC+ but we already checked metadata.exists()
+                //and it saves metadata to different folder
+                //and it writes converter settings
+                checkAndGenerateMetadata(originalDir, fname);
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
+    public static void checkAndGenerateMetadata(String replayFolder, String outputFolder) {
+        Logger.Info("Generating metadata for " + replayFolder);
+        // generate new metadata
+        int replayLength = Replay.getReplayEnding(new File(replayFolder + "/in.bin.gz"));
+        long dateModified = new File(replayFolder + "/keys.bin").lastModified();
+
+        try {
+            DataOutputStream metadata =
+                    new DataOutputStream(
+                            new BufferedOutputStream(
+                                    new FileOutputStream(new File(outputFolder + "/metadata.bin"))));
+            metadata.writeInt(replayLength);
+            metadata.writeLong(dateModified);
+
+            //new bitmasked data in metadata.bin to denote what settings were used while converting
+            byte converterSettings = 0;
+            if (Settings.sanitizeFriendsIgnore)
+                converterSettings += 4;
+            if (Settings.sanitizePrivateChat)
+                converterSettings += 2;
+            if (Settings.sanitizePublicChat)
+                converterSettings += 1;
+            metadata.writeByte(converterSettings);
+
+            metadata.flush();
+            metadata.close();
+        } catch (IOException e) {
+            Logger.Error("Couldn't write metadata.bin!");
+        }
+    }
+
+    public static boolean addConverterSettingsToMetadata(String outputFolder) {
+        long metadataLength = new File(outputFolder + "/metadata.bin").length();
+        int replayLength = -1;
+        long dateModified = -1;
+        byte previousConverterSettings = 0;
+
+        // This is to prevent an old version of RSCMinus (this one) from destroying data in metadata.bin
+        // We must also read the metadata.bin in case a replay is sent through the sanitizer more than once
+        // 12 byte metadata.bin is original format, 13 byte is "converter settings format
+        if (metadataLength == 12 || metadataLength == 13) {
+            try {
+                DataInputStream metadata =
+                        new DataInputStream(
+                                new BufferedInputStream(
+                                        new FileInputStream(new File(outputFolder + "/metadata.bin"))));
+                replayLength = metadata.readInt();
+                dateModified = metadata.readLong();
+
+                if (metadataLength == 13) {
+                    // 13 byte metadata.bin is what this converter writes, so it must have been through the converter before
+                    // That, or a new format metadata.bin exists with the convert settings padded
+                    Logger.Debug("metadata.bin appears to already have converter settings written. Merging the settings.");
+                    previousConverterSettings = metadata.readByte();
+                }
+
+                metadata.close();
+            } catch (IOException e) {
+                Logger.Error("Couldn't read metadata.bin!");
+            }
+        } else {
+            //if metadata.bin exists, and it's not 12 or 13 bytes, then it's in a format that this version of RSCMinus can't handle.
+            if (metadataLength != 0) {
+                Logger.Error("@|red,intensity_bold Error, addConverterSettingsToMetadata cannot work on this file, generating a new one and saving the old one as metadata.original.<timestamp>.bin|@");
+                Logger.Error("@|red,intensity_bold Please update RSCMinus|@");
+            } else {
+                Logger.Debug("metadata.bin existed but was 0 bytes...");
+            }
+            return false;
+        }
+
+        //add converter settings to end of metadata.bin
+        try {
+            DataOutputStream metadata =
+                    new DataOutputStream(
+                            new BufferedOutputStream(
+                                    new FileOutputStream(new File(outputFolder + "/metadata.bin"))));
+            metadata.writeInt(replayLength);
+            metadata.writeLong(dateModified);
+
+            //new bitmasked data in metadata.bin to denote what settings were used while converting
+            byte converterSettings = 0;
+            if (Settings.sanitizeFriendsIgnore)
+                converterSettings += 4;
+            if (Settings.sanitizePrivateChat)
+                converterSettings += 2;
+            if (Settings.sanitizePublicChat)
+                converterSettings += 1;
+            metadata.writeByte(converterSettings | previousConverterSettings);
+
+            metadata.flush();
+            metadata.close();
+        } catch (IOException e) {
+            Logger.Error("Couldn't write metadata.bin!");
+        }
+
+        return true;
+    }
+
 }
