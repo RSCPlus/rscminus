@@ -38,10 +38,11 @@ public class Scraper {
 
     // Settings
     private static String sanitizePath = "replays";
-    private static String sanitizeOutputPath = "sanitized";
-    private static boolean sanitizePublicChat = true;
-    private static boolean sanitizePrivateChat = true;
-    private static boolean sanitizeFriendsIgnore = true;
+    private static String sanitizeOutputPath = "output";
+    private static boolean sanitizeReplays = false;
+    private static boolean sanitizePublicChat = false;
+    private static boolean sanitizePrivateChat = false;
+    private static boolean sanitizeFriendsIgnore = false;
 
     private static boolean objectIDBlacklisted(int id, int x, int y) {
         boolean blacklist = false;
@@ -383,10 +384,12 @@ public class Scraper {
             }
         }
 
-        String outDir = fname.replaceFirst(sanitizePath, sanitizeOutputPath);
-        outDir = new File(outDir).toPath().toAbsolutePath().toString();
-        FileUtil.mkdir(outDir);
-        editor.exportData(outDir);
+        if (sanitizeReplays) {
+            String outDir = sanitizeOutputPath + fname.substring(sanitizePath.length());
+            outDir = new File(outDir).toPath().toAbsolutePath().toString();
+            FileUtil.mkdir(outDir);
+            editor.exportData(outDir);
+        }
     }
 
     private static void scrapeReplay(String fname) {
@@ -578,22 +581,65 @@ public class Scraper {
         }
     }
 
+    private static void printHelp(String args[]) {
+        System.out.println("syntax:");
+        System.out.println("\t[OPTIONS] [REPLAY DIRECTORY]");
+        System.out.println("options:");
+        System.out.println("\t-h\tShow this usage dialog");
+        System.out.println("\t-s\tSanitize replays");
+        System.out.println("\t-p\tSanitize public chat");
+        System.out.println("\t-x\tSanitize private chat");
+        System.out.println("\t-f\tSanitize friends and ignores");
+    }
+
+    private static boolean parseArguments(String args[]) {
+        for (String arg : args) {
+            switch(arg.toLowerCase()) {
+                case "-h":
+                    return false;
+                case "-s":
+                    sanitizeReplays = true;
+                    break;
+                case "-p":
+                    sanitizePublicChat = true;
+                    break;
+                case "-x":
+                    sanitizePrivateChat = true;
+                    break;
+                case "-f":
+                    sanitizeFriendsIgnore = true;
+                    break;
+                default:
+                    // Invalid argument
+                    if (arg.charAt(0) == '-')
+                        return false;
+                    sanitizePath = arg;
+                    break;
+            }
+        }
+        return true;
+    }
+
     public static void main(String args[]) {
+        boolean success = parseArguments(args);
+        if (!success) {
+            printHelp(args);
+            return;
+        }
+
         sanitizePath = new File(sanitizePath).toPath().toAbsolutePath().toString();
         sanitizeOutputPath = new File(sanitizeOutputPath).toPath().toAbsolutePath().toString();
         FileUtil.mkdir(sanitizePath);
         FileUtil.mkdir(sanitizeOutputPath);
 
-        // Set sanitize settings and begin sanitizing
-        sanitizePublicChat = true;
-        sanitizePrivateChat = true;
-        sanitizeFriendsIgnore = true;
+        // Begin sanitizing
         sanitizeDirectory(sanitizePath);
 
         // Scrape directory
-        //scrapeDirectory(sanitizePath);
-        //dumpObjects(sanitizeOutputPath + "/objects.bin");
-        //dumpWallObjects(sanitizeOutputPath + "/wallobjects.bin");
+        // TODO: Combine this with our sanitizer
+        scrapeDirectory(sanitizePath);
+        dumpObjects(sanitizeOutputPath + "objects.bin");
+        dumpWallObjects(sanitizeOutputPath + "wallobjects.bin");
 
         return;
     }
