@@ -232,38 +232,6 @@ public class Replay {
         return size;
     }
 
-    //should be the same as calculateSize but this one is from RSC+ so it's safer to use it
-    public static int getReplayEnding(File replay) {
-        int timestamp_ret = 0;
-
-        try {
-            DataInputStream fileInput =
-                    new DataInputStream(
-                            new BufferedInputStream(new GZIPInputStream(new FileInputStream(replay))));
-            for (; ; ) {
-                int timestamp_input = fileInput.readInt();
-
-                // EOF
-                if (timestamp_input == -1) break;
-
-                // Skip data, we need to find the last timestamp
-                int length = fileInput.readInt();
-                if (length > 0) {
-                    int skipped = fileInput.skipBytes(length);
-
-                    if (skipped != length) break;
-                }
-
-                timestamp_ret = timestamp_input;
-            }
-            fileInput.close();
-        } catch (Exception e) {
-            // e.printStackTrace();
-        }
-
-        return timestamp_ret;
-    }
-
     public void dump(String fname) {
         File f = new File(fname);
         try {

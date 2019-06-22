@@ -20,22 +20,15 @@
 package rscminus.scraper;
 
 import rscminus.common.FileUtil;
-import rscminus.common.Logger;
-import rscminus.common.Settings;
 import rscminus.game.PacketBuilder;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
 
-import java.awt.*;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.HashMap;
 import java.util.LinkedList;
-
-import static rscminus.common.Settings.initDir;
-import static rscminus.common.Settings.sanitizeOutputPath;
-import static rscminus.common.Settings.sanitizePath;
 
 public class Scraper {
     private static HashMap<Integer, Integer> m_objects = new HashMap<Integer, Integer>();
@@ -43,9 +36,12 @@ public class Scraper {
 
     private static final int OBJECT_BLANK = 65536;
 
-    private static StripperWindow stripperWindow;
-    public static boolean scraping = false;
-    public static boolean stripping = false;
+    // Settings
+    private static String sanitizePath = "replays";
+    private static String sanitizeOutputPath = "sanitized";
+    private static boolean sanitizePublicChat = true;
+    private static boolean sanitizePrivateChat = true;
+    private static boolean sanitizeFriendsIgnore = true;
 
     private static boolean objectIDBlacklisted(int id, int x, int y) {
         boolean blacklist = false;
@@ -75,7 +71,7 @@ public class Scraper {
             blacklist = true;
 
         if (blacklist)
-            Logger.Debug("GameObject id " + id + " at " + x + ", " + y + " was blacklisted");
+            System.out.println("GameObject id " + id + " at " + x + ", " + y + " was blacklisted");
 
         return blacklist;
     }
@@ -87,7 +83,7 @@ public class Scraper {
             remove = true;
 
         if (remove)
-            Logger.Debug("GameObject id " + id + " at " + x + ", " + y + " was removed");
+            System.out.println("GameObject id " + id + " at " + x + ", " + y + " was removed");
 
         return remove;
     }
@@ -96,7 +92,7 @@ public class Scraper {
         boolean blacklist = false;
 
         if (blacklist)
-            Logger.Debug("WallObject id " + id + " at " + x + ", " + y + " was blacklisted");
+            System.out.println("WallObject id " + id + " at " + x + ", " + y + " was blacklisted");
 
         return blacklist;
     }
@@ -123,7 +119,7 @@ public class Scraper {
         else if (before == 314)
             return after;
 
-        Logger.Warn("unhandled GameObject conflict; before: " + before + ", after: " + after);
+        System.out.println("unhandled GameObject conflict; before: " + before + ", after: " + after);
 
         return before;
     }
@@ -185,7 +181,7 @@ public class Scraper {
         else if (afterID == 11)
             return packCoordinate(beforeID, beforeDirection);
 
-        Logger.Warn("unhandled WallObject conflict; before: " + beforeID + ", after: " + afterID);
+        System.out.println("unhandled WallObject conflict; before: " + beforeID + ", after: " + afterID);
 
         return before;
     }
@@ -210,7 +206,7 @@ public class Scraper {
                 }
             }
             out.close();
-            Logger.Info("Dumped " + objectCount + " objects");
+            System.out.println("Dumped " + objectCount + " objects");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -232,7 +228,7 @@ public class Scraper {
                 out.writeByte(direction);
             }
             out.close();
-            Logger.Info("Dumped " + count + " wall objects");
+            System.out.println("Dumped " + count + " wall objects");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -285,12 +281,11 @@ public class Scraper {
         ReplayEditor editor = new ReplayEditor();
         editor.importData(fname);
 
-        Logger.Debug(fname);
+        System.out.println(fname);
 
         // Process incoming packets
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
-            Logger.Debug(String.format("incoming opcode: %d",packet.opcode));
             switch (packet.opcode) {
                 case PacketBuilder.OPCODE_UPDATE_PLAYERS:
                 {
@@ -307,7 +302,7 @@ public class Scraper {
                             packet.readRSCString();
 
                             // Strip Chat
-                            if (Settings.sanitizePublicChat) {
+                            if (sanitizePublicChat) {
                                 int trimSize = packet.tell() - startPosition;
                                 packet.skip(-trimSize);
                                 packet.trim(trimSize);
@@ -351,12 +346,12 @@ public class Scraper {
                 case PacketBuilder.OPCODE_SET_IGNORE:
                 case PacketBuilder.OPCODE_UPDATE_IGNORE:
                 case PacketBuilder.OPCODE_UPDATE_FRIEND:
-                    if (Settings.sanitizeFriendsIgnore)
+                    if (sanitizeFriendsIgnore)
                         packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                     break;
                 case PacketBuilder.OPCODE_RECV_PM:
                 case PacketBuilder.OPCODE_SEND_PM:
-                    if (Settings.sanitizePrivateChat)
+                    if (sanitizePrivateChat)
                         packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                     break;
                 default:
@@ -367,42 +362,41 @@ public class Scraper {
         // Process outgoing packets
         LinkedList<ReplayPacket> outgoingPackets = editor.getOutgoingPackets();
         for (ReplayPacket packet : outgoingPackets) {
-            Logger.Debug(String.format("outgoing opcode: %d",packet.opcode));
             switch (packet.opcode) {
                 case 216: // Send chat message
-                    if (Settings.sanitizePublicChat)
+                    if (sanitizePublicChat)
                         packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                     break;
                 case 218: // Send private message
-                    if (Settings.sanitizePrivateChat)
+                    if (sanitizePrivateChat)
                         packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                     break;
                 case 167: // Remove friend
                 case 195: // Add friend
                 case 241: // Remove ignore
                 case 132: // Add ignore
-                    if (Settings.sanitizeFriendsIgnore)
+                    if (sanitizeFriendsIgnore)
                         packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                     break;
                 default:
                     break;
             }
         }
-        String outDir = fname.replace(new File(sanitizePath).getAbsolutePath(), new File(sanitizeOutputPath).getAbsolutePath());
+
+        String outDir = fname.replaceFirst(sanitizePath, sanitizeOutputPath);
         outDir = new File(outDir).toPath().toAbsolutePath().toString();
-        Logger.Debug("@|green,intensity_bold finished processing, outdir: |@" + outDir);
         FileUtil.mkdir(outDir);
-        editor.exportData(outDir,fname);
+        editor.exportData(outDir);
     }
 
     private static void scrapeReplay(String fname) {
         Replay replay = new Replay();
         replay.load(fname);
 
-        Logger.Info(fname);
+        System.out.println(fname);
 
         if (!replay.isValid()) {
-            Logger.Info("Failed to load replay; Aborting");
+            System.out.println("Failed to load replay; Aborting");
             return;
         }
 
@@ -462,16 +456,16 @@ public class Scraper {
                             length -= 4;
 
                             if (!loggedIn || planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || y_offset != Game.WORLD_Y_OFFSET || floor > 3 || floor < 0) {
-                                Logger.Warn("Invalid region or not logged in; Aborting");
+                                System.out.println("Invalid region or not logged in; Aborting");
                                 return;
                             }
 
                             if (!validCoordinates(x, y)) {
-                                Logger.Warn("Invalid coordinates " + x + ", " + y + "; Aborting");
+                                System.out.println("Invalid coordinates " + x + ", " + y + "; Aborting");
                                 return;
                             } else if (type != 60000 && !objectIDBlacklisted(type, x, y)) {
                                 if (type < 0 || type > 1188) {
-                                    Logger.Warn("GameObject id " + type + " at " + x + ", " + y + " is invalid; Aborting");
+                                    System.out.println("GameObject id " + type + " at " + x + ", " + y + " is invalid; Aborting");
                                     return;
                                 }
 
@@ -498,16 +492,16 @@ public class Scraper {
                             length -= 5;
 
                             if (!loggedIn || planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || y_offset != Game.WORLD_Y_OFFSET || floor > 3 || floor < 0) {
-                                Logger.Warn("Invalid region or not logged in; Aborting");
+                                System.out.println("Invalid region or not logged in; Aborting");
                                 return;
                             }
 
                             if (!validCoordinates(x, y)) {
-                                Logger.Warn("Invalid coordinates " + x + ", " + y + "; Aborting");
+                                System.out.println("Invalid coordinates " + x + ", " + y + "; Aborting");
                                 return;
                             } else if (type != 0xFFFF && !wallObjectIDBlacklisted(type, x, y)) {
                                 if (type < 0 || type > 213) {
-                                    Logger.Warn("WallObject id " + type + " at " + x + ", " + y + " is invalid; Aborting");
+                                    System.out.println("WallObject id " + type + " at " + x + ", " + y + " is invalid; Aborting");
                                     return;
                                 }
 
@@ -561,13 +555,10 @@ public class Scraper {
             if (f.isDirectory()) {
                 String replayDirectory = f.getAbsolutePath();
                 File replay = new File(replayDirectory + "/in.bin.gz");
-                if (replay.exists()) {
-                    Logger.Info("@|cyan Started sanitizing |@" + replayDirectory);
+                if (replay.exists())
                     sanitizeReplay(replayDirectory);
-                    Logger.Info("@|cyan,intensity_bold Finished sanitizing |@" + replayDirectory);
-                } else {
+                else
                     sanitizeDirectory(replayDirectory);
-                }
             }
         }
     }
@@ -588,73 +579,22 @@ public class Scraper {
     }
 
     public static void main(String args[]) {
-        initDir();
-        Logger.Debug("Dir.JAR: " + Settings.Dir.JAR);
-        setStripperWindow(new StripperWindow());
-        stripperWindow.showStripperWindow();
+        sanitizePath = new File(sanitizePath).toPath().toAbsolutePath().toString();
+        sanitizeOutputPath = new File(sanitizeOutputPath).toPath().toAbsolutePath().toString();
+        FileUtil.mkdir(sanitizePath);
+        FileUtil.mkdir(sanitizeOutputPath);
+
+        // Set sanitize settings and begin sanitizing
+        sanitizePublicChat = true;
+        sanitizePrivateChat = true;
+        sanitizeFriendsIgnore = true;
+        sanitizeDirectory(sanitizePath);
+
+        // Scrape directory
+        //scrapeDirectory(sanitizePath);
+        //dumpObjects(sanitizeOutputPath + "/objects.bin");
+        //dumpWallObjects(sanitizeOutputPath + "/wallobjects.bin");
 
         return;
     }
-
-    public static void scrape() {
-        scraping = true;
-        // Scrape directory
-        if (Settings.dumpObjects || Settings.dumpWallObjects) {
-            File replay = new File(sanitizePath + "/in.bin.gz");
-            if (replay.exists())
-                scrapeReplay(sanitizePath);
-            else
-                scrapeDirectory(sanitizePath);
-        } else {
-            Logger.Warn("@|red You attempted to scrape nothing. Make sure to select something to scrape.|@");
-        }
-        if (Settings.dumpObjects) {
-            dumpObjects(Settings.Dir.JAR + "/objects.bin");
-        }
-        if (Settings.dumpWallObjects) {
-            dumpWallObjects(Settings.Dir.JAR + "/wallobjects.bin");
-        }
-        Logger.Info("Saved to " + Settings.Dir.JAR);
-        Logger.Info("@|green,intensity_bold Finished Scraping!|@");
-        scraping = false;
-    }
-
-    public static void strip() {
-        String filename = new File(sanitizePath).getName();
-        if (filename.equals("Processing!") || filename.equals("Finished!")) {
-            Logger.Warn("@|red Invalid folder asked to be stripped.|@");
-            Logger.Info("@|red Hit CTRL-V to paste into the text field.|@");
-            return;
-        }
-
-        stripping = true;
-        sanitizePath = new File(sanitizePath).toPath().toAbsolutePath().toString();
-        sanitizeOutputPath = Settings.Dir.JAR + "/strippedReplays";
-
-        FileUtil.mkdir(sanitizePath);
-
-        File replay = new File(sanitizePath + "/in.bin.gz");
-        if (replay.exists()) {
-            sanitizeOutputPath += "/" + new File(sanitizePath).getName();
-            FileUtil.mkdir(sanitizeOutputPath);
-            Logger.Info("Saving to " + sanitizeOutputPath);
-            sanitizeReplay(sanitizePath);
-        } else {
-            FileUtil.mkdir(sanitizeOutputPath);
-            Logger.Info("Saving to " + sanitizeOutputPath);
-            sanitizeDirectory(sanitizePath);
-        }
-        Logger.Info("Saved to " + sanitizeOutputPath);
-        Logger.Info("@|green,intensity_bold Finished Stripping/Optimizing!|@");
-        stripping = false;
-    }
-
-    /** @return the window */
-    public static StripperWindow getStripperWindow() {
-        return stripperWindow;
-    }
-
-    /** @param window the window to set */
-    public static void setStripperWindow(StripperWindow window) {stripperWindow = window;}
-
 }

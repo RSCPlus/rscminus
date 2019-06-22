@@ -20,10 +20,6 @@
 package rscminus.common;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 
 public class FileUtil {
@@ -38,33 +34,4 @@ public class FileUtil {
             return null;
         }
     }
-
-    public static String findDirectoryReverse(String name) {
-        String ret = Settings.Dir.JAR;
-
-        for (int i = 0; i < 8; i++) {
-            File file = new File(ret + name);
-            if (file.exists() && file.isDirectory()) return ret;
-            ret += "/..";
-        }
-
-        return Settings.Dir.JAR;
-    }
-
-    public static void copyFile(File source, File dest) throws IOException {
-        if (source.getAbsolutePath().equals(dest.getAbsolutePath())) {
-            return;
-        }
-        FileChannel sourceChannel = null;
-        FileChannel destChannel = null;
-        try {
-            sourceChannel = new FileInputStream(source).getChannel();
-            destChannel = new FileOutputStream(dest).getChannel();
-            destChannel.transferFrom(sourceChannel, 0, sourceChannel.size());
-        }finally{
-            sourceChannel.close();
-            destChannel.close();
-        }
-    }
-
 }
