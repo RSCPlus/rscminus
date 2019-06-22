@@ -638,8 +638,8 @@ public class Scraper {
         // Scrape directory
         // TODO: Combine this with our sanitizer
         scrapeDirectory(sanitizePath);
-        dumpObjects(sanitizeOutputPath + "objects.bin");
-        dumpWallObjects(sanitizeOutputPath + "wallobjects.bin");
+        dumpObjects(sanitizeOutputPath + "/objects.bin");
+        dumpWallObjects(sanitizeOutputPath + "/wallobjects.bin");
 
         return;
     }
