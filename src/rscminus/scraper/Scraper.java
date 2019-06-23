@@ -287,100 +287,113 @@ public class Scraper {
         // Process incoming packets
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
-            switch (packet.opcode) {
-                case PacketBuilder.OPCODE_UPDATE_PLAYERS:
-                {
-                    int originalPlayerCount = packet.readUnsignedShort();
-                    int playerCount = originalPlayerCount;
-                    for (int i = 0; i < originalPlayerCount; i++) {
-                        int startPosition = packet.tell();
-                        int pid = packet.readUnsignedShort();
-                        int updateType = packet.readUnsignedByte();
-                        if (updateType == 0) {
-                            packet.skip(2);
-                        } else if (updateType == 1) {
-                            packet.skip(1);
-                            packet.readRSCString();
+            try {
+                switch (packet.opcode) {
+                    case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
+                        System.out.println("loginresponse: " + packet.data[0] + " (timestamp: " + packet.timestamp + ")");
+                        break;
+                    case PacketBuilder.OPCODE_UPDATE_PLAYERS: {
+                        int originalPlayerCount = packet.readUnsignedShort();
+                        int playerCount = originalPlayerCount;
+                        for (int i = 0; i < originalPlayerCount; i++) {
+                            int startPosition = packet.tell();
+                            int pid = packet.readUnsignedShort();
+                            int updateType = packet.readUnsignedByte();
+                            if (updateType == 0) {
+                                packet.skip(2);
+                            } else if (updateType == 1) {
+                                packet.skip(1);
+                                packet.readRSCString();
 
-                            // Strip Chat
-                            if (sanitizePublicChat) {
-                                int trimSize = packet.tell() - startPosition;
-                                packet.skip(-trimSize);
-                                packet.trim(trimSize);
-                                playerCount--;
-                                continue;
+                                // Strip Chat
+                                if (sanitizePublicChat) {
+                                    int trimSize = packet.tell() - startPosition;
+                                    packet.skip(-trimSize);
+                                    packet.trim(trimSize);
+                                    playerCount--;
+                                    continue;
+                                }
+                            } else if (updateType == 2) {
+                                packet.skip(3);
+                            } else if (updateType == 3) {
+                                packet.skip(4);
+                            } else if (updateType == 4) {
+                                packet.skip(4);
+                            } else if (updateType == 5) {
+                                packet.skip(2);
+                                packet.readPaddedString();
+                                packet.readPaddedString();
+                                int equipCount = packet.readUnsignedByte();
+                                packet.skip(equipCount);
+                                packet.skip(6);
+                            } else if (updateType == 6) {
+                                packet.readRSCString();
+                            } else {
+                                packet.skip(2);
+                                packet.readPaddedString();
+                                packet.readPaddedString();
+                                packet.skip(6 + packet.readUnsignedByte());
                             }
-                        } else if (updateType == 2) {
-                            packet.skip(3);
-                        } else if (updateType == 3) {
-                            packet.skip(4);
-                        } else if (updateType == 4) {
-                            packet.skip(4);
-                        } else if (updateType == 5) {
-                            packet.skip(2);
-                            packet.readPaddedString();
-                            packet.readPaddedString();
-                            int equipCount = packet.readUnsignedByte();
-                            packet.skip(equipCount);
-                            packet.skip(6);
-                        } else if (updateType == 6) {
-                            packet.readRSCString();
-                        } else {
-                            packet.skip(2);
-                            packet.readPaddedString();
-                            packet.readPaddedString();
-                            packet.skip(1);
                         }
-                    }
 
-                    // Rewrite player count
-                    if (originalPlayerCount != playerCount) {
-                        if (playerCount == 0) {
-                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                        } else {
-                            packet.seek(0);
-                            packet.writeUnsignedShort(playerCount);
+                        // Rewrite player count
+                        if (originalPlayerCount != playerCount) {
+                            if (playerCount == 0) {
+                                packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                            } else {
+                                packet.seek(0);
+                                packet.writeUnsignedShort(playerCount);
+                            }
                         }
+                        break;
                     }
-                    break;
+                    case PacketBuilder.OPCODE_SET_IGNORE:
+                    case PacketBuilder.OPCODE_UPDATE_IGNORE:
+                    case PacketBuilder.OPCODE_UPDATE_FRIEND:
+                        if (sanitizeFriendsIgnore)
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
+                    case PacketBuilder.OPCODE_RECV_PM:
+                    case PacketBuilder.OPCODE_SEND_PM:
+                        if (sanitizePrivateChat)
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
+                    default:
+                        break;
                 }
-                case PacketBuilder.OPCODE_SET_IGNORE:
-                case PacketBuilder.OPCODE_UPDATE_IGNORE:
-                case PacketBuilder.OPCODE_UPDATE_FRIEND:
-                    if (sanitizeFriendsIgnore)
-                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                    break;
-                case PacketBuilder.OPCODE_RECV_PM:
-                case PacketBuilder.OPCODE_SEND_PM:
-                    if (sanitizePrivateChat)
-                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                    break;
-                default:
-                    break;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
 
         // Process outgoing packets
         LinkedList<ReplayPacket> outgoingPackets = editor.getOutgoingPackets();
         for (ReplayPacket packet : outgoingPackets) {
-            switch (packet.opcode) {
-                case 216: // Send chat message
-                    if (sanitizePublicChat)
-                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                    break;
-                case 218: // Send private message
-                    if (sanitizePrivateChat)
-                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                    break;
-                case 167: // Remove friend
-                case 195: // Add friend
-                case 241: // Remove ignore
-                case 132: // Add ignore
-                    if (sanitizeFriendsIgnore)
-                        packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
-                    break;
-                default:
-                    break;
+            try {
+                switch (packet.opcode) {
+                    case ReplayEditor.VIRTUAL_OPCODE_CONNECT: // Login
+                        System.out.println("outgoing login (timestamp: " + packet.timestamp + ")");
+                        break;
+                    case 216: // Send chat message
+                        if (sanitizePublicChat)
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
+                    case 218: // Send private message
+                        if (sanitizePrivateChat)
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
+                    case 167: // Remove friend
+                    case 195: // Add friend
+                    case 241: // Remove ignore
+                    case 132: // Add ignore
+                        if (sanitizeFriendsIgnore)
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
+                    default:
+                        break;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
 

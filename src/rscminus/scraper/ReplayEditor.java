@@ -70,7 +70,7 @@ public class ReplayEditor {
             version.close();
 
             // Import keys
-            int keyCount = (int)keysFile.length() / 16;
+            int keyCount = (int) keysFile.length() / 16;
             DataInputStream keys = new DataInputStream(new FileInputStream(keysFile));
             for (int i = 0; i < keyCount; i++) {
                 ReplayKeyPair keyPair = new ReplayKeyPair();
@@ -81,20 +81,29 @@ public class ReplayEditor {
                 m_keys.add(keyPair);
             }
             keys.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
+        ReplayPacket replayPacket;
+        try {
             // Import incoming packets
             ReplayReader incomingReader = new ReplayReader();
-            incomingReader.open(inFile, m_replayVersion, m_keys);
-            ReplayPacket replayPacket;
-            while ((replayPacket = incomingReader.readPacket(false, null)) != null)
+            incomingReader.open(inFile, m_replayVersion, m_keys, false);
+            while ((replayPacket = incomingReader.readPacket()) != null) {
                 m_incomingPackets.add(replayPacket);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
+        try {
             // Import outgoing packets
-            LinkedList<Integer> disconnectTimestamps = incomingReader.getDisconnectTimestamps();
             ReplayReader outgoingReader = new ReplayReader();
-            outgoingReader.open(outFile, m_replayVersion, m_keys);
-            while ((replayPacket = outgoingReader.readPacket(true, disconnectTimestamps)) != null)
+            outgoingReader.open(outFile, m_replayVersion, m_keys, true);
+            while ((replayPacket = outgoingReader.readPacket()) != null) {
                 m_outgoingPackets.add(replayPacket);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -150,8 +159,10 @@ public class ReplayEditor {
                     in.writeInt(packet.timestamp);
                     in.writeInt(1);
                     in.writeByte(packet.data[0]);
-                    isaac.reset();
-                    isaac.setKeys(m_keys.get(++keyIndex).keys);
+                    if ((packet.data[0] & 64) != 0) {
+                        isaac.reset();
+                        isaac.setKeys(m_keys.get(++keyIndex).keys);
+                    }
                     continue;
                 }
 
