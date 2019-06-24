@@ -19,6 +19,7 @@
 
 package rscminus.scraper;
 
+import rscminus.common.FileUtil;
 import rscminus.common.ISAACCipher;
 import rscminus.common.MathUtil;
 import rscminus.common.Sleep;
@@ -31,6 +32,10 @@ public class ReplayReader {
     private byte[] m_data;
     private Queue<Integer> m_timestamps = new LinkedList<Integer>();
     LinkedList<Integer> m_disconnectOffsets = new LinkedList<Integer>();
+
+    private static final byte[] m_inputDisconnectPattern = {
+            0x40, 0x05, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x1A, 0x00
+    };
 
     private static final byte[] m_outputDisconnectPattern = {
             0x00, 0x01, 0x00, 0x00, 0x00, (byte)0xEB
@@ -63,27 +68,16 @@ public class ReplayReader {
         // Read replay data
         DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
         int timestamp = 0;
-        int lastTimestamp = timestamp;
         int offset = 0;
         int lastOffset = offset;
         LinkedHashMap<Integer,Integer> timestamps = new LinkedHashMap<Integer,Integer>();
         while ((timestamp = in.readInt()) != TIMESTAMP_EOF) {
             timestamps.put(offset, timestamp);
-
-            // Handle v0 disconnect
-            if (replayVersion.version == 0 && (timestamp - lastTimestamp) > 400)
-                m_disconnectOffsets.add(offset);
-
-            lastOffset = offset;
             int length = in.readInt();
             if (length > 0) {
                 in.read(m_data, offset, length);
                 offset += length;
             }
-            if (length == -1 && replayVersion.version != 0) {
-                m_disconnectOffsets.add(offset);
-            }
-            lastTimestamp = timestamp;
         }
 
         in.close();
@@ -93,6 +87,23 @@ public class ReplayReader {
         m_keys = keys;
         m_keyIndex = -1;
 
+        // Build disconnect map for in.bin
+        // Our initial recording implementation had problems with this
+        if (!m_outgoing) {
+            boolean firstLogin = false;
+            while (!isEOF()) {
+                if (loginBinarySearch()) {
+                    if (!firstLogin) {
+                        firstLogin = true;
+                    } else {
+                        m_disconnectOffsets.add(m_position);
+                    }
+                }
+                skip(1);
+            }
+            m_position = 0;
+        }
+
         // Map timestamps for faster import
         Iterator<Map.Entry<Integer, Integer>> iterator = timestamps.entrySet().iterator();
         Map.Entry<Integer, Integer> entry = iterator.next();
@@ -101,6 +112,9 @@ public class ReplayReader {
             // Handle disconnect
             if (m_disconnectOffsets.contains(m_position)) {
                 m_loggedIn = false;
+            } else if (m_disconnectOffsets.contains(m_position + 1)) {
+                m_loggedIn = false;
+                m_position++;
             }
 
             if (m_loggedIn || m_outgoing) {
@@ -140,6 +154,27 @@ public class ReplayReader {
         }
     }
 
+    private boolean loginBinarySearch() {
+        if (m_data.length - m_position < m_inputDisconnectPattern.length)
+            return false;
+
+        for (int i = 0; i < m_inputDisconnectPattern.length; i++) {
+            if (i == 0 || i == 3)
+                continue;
+
+            int offset = m_position + i;
+            int searchValue = m_inputDisconnectPattern[i];
+            if (searchValue == 0x00 && i <= 6) {
+                if (!(m_data[offset] == 0x00 || m_data[offset] == 0x01))
+                    return false;
+            } else {
+                if (m_data[offset] != searchValue)
+                    return false;
+            }
+        }
+        return true;
+    }
+
     private boolean binarySearch(byte[] pattern) {
         for (int i = 0; i < pattern.length; i++) {
             int offset = m_position + i;
@@ -175,6 +210,8 @@ public class ReplayReader {
         if (packet == null || packet.opcode != 182)
             success = false;
         m_position = originalPosition;
+        isaac.reset();
+        isaac.setKeys(m_keys.get(m_keyIndex).keys);
         return success;
     }
 
@@ -199,6 +236,10 @@ public class ReplayReader {
             // Handle disconnect
             if (m_disconnectOffsets.contains(m_position)) {
                 m_loggedIn = false;
+            } else if (m_disconnectOffsets.contains(m_position + 1)) {
+                m_loggedIn = false;
+                m_position++;
+                System.out.println("WARNING: Disconnect offset off by one");
             }
         }
 
@@ -245,6 +286,12 @@ public class ReplayReader {
                         isaac.reset();
                         isaac.setKeys(m_keys.get(++m_keyIndex).keys);
                         m_loggedIn = true;
+
+                        boolean success = verifyLogin();
+                        if (!success) {
+                            System.out.println("ERROR: Invalid incoming login packet");
+                            return null;
+                        }
                     } else {
                         m_forceQuit = true;
                     }
@@ -256,18 +303,11 @@ public class ReplayReader {
 
                     // Set timestamp
                     replayPacket.timestamp = packetTimestamp;
-
-                    boolean success = verifyLogin();
-                    if (!success) {
-                        System.out.println("ERROR: Invalid incoming login packet: " + replayPacket.opcode);
-                        return null;
-                    }
                 }
             } else {
                 int length = readPacketLength();
                 if (length > 1) {
                     int dataLength = length - 1;
-                    long start = System.currentTimeMillis();
                     replayPacket.data = new byte[dataLength];
                     if (length < 160) {
                         replayPacket.data[dataLength - 1] = readByte();

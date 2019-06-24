@@ -279,10 +279,10 @@ public class Scraper {
     }
 
     private static void sanitizeReplay(String fname) {
+        System.out.println(fname);
+
         ReplayEditor editor = new ReplayEditor();
         editor.importData(fname);
-
-        System.out.println(fname);
 
         // Process incoming packets
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
