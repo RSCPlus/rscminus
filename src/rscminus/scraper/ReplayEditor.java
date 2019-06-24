@@ -90,7 +90,7 @@ public class ReplayEditor {
             // Import incoming packets
             ReplayReader incomingReader = new ReplayReader();
             incomingReader.open(inFile, m_replayVersion, m_keys, false);
-            while ((replayPacket = incomingReader.readPacket()) != null) {
+            while ((replayPacket = incomingReader.readPacket(false)) != null) {
                 m_incomingPackets.add(replayPacket);
             }
         } catch (Exception e) {
@@ -101,7 +101,7 @@ public class ReplayEditor {
             // Import outgoing packets
             ReplayReader outgoingReader = new ReplayReader();
             outgoingReader.open(outFile, m_replayVersion, m_keys, true);
-            while ((replayPacket = outgoingReader.readPacket()) != null) {
+            while ((replayPacket = outgoingReader.readPacket(false)) != null) {
                 m_outgoingPackets.add(replayPacket);
             }
         } catch (Exception e) {

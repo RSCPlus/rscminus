@@ -149,16 +149,44 @@ public class ReplayReader {
         return true;
     }
 
-    public ReplayPacket readPacket() {
+    private boolean verifyLogin() {
+        boolean success = true;
+        int originalPosition = m_position;
+        ReplayPacket packet;
+        packet = readPacket(true);
+        if (packet == null || packet.opcode != 51)
+            success = false;
+        packet = readPacket(true);
+        if (packet == null || packet.opcode != 131)
+            success = false;
+        packet = readPacket(true);
+        if (packet == null || packet.opcode != 240)
+            success = false;
+        packet = readPacket(true);
+        if (packet == null || packet.opcode != 25)
+            success = false;
+        packet = readPacket(true);
+        if (packet == null || packet.opcode != 5)
+            success = false;
+        packet = readPacket(true);
+        if (packet == null || packet.opcode != 111)
+            success = false;
+        packet = readPacket(true);
+        if (packet == null || packet.opcode != 182)
+            success = false;
+        m_position = originalPosition;
+        return success;
+    }
+
+    public ReplayPacket readPacket(boolean peek) {
         if (isEOF() || m_forceQuit)
             return null;
 
-        // Handle disconnect
-        if (m_disconnectOffsets.contains(m_position)) {
-            m_loggedIn = false;
-        }
-
-        int packetTimestamp = m_timestamps.poll();
+        int packetTimestamp;
+        if (peek)
+            packetTimestamp = m_timestamps.peek();
+        else
+            packetTimestamp = m_timestamps.poll();
 
         // Check for disconnect for outgoing (workaround)
         if (m_outgoing) {
@@ -167,6 +195,11 @@ public class ReplayReader {
             if (m_disconnectOffsets.contains(m_position))
                 m_loggedIn = false;
             m_position = oldPosition;
+        } else {
+            // Handle disconnect
+            if (m_disconnectOffsets.contains(m_position)) {
+                m_loggedIn = false;
+            }
         }
 
         try {
@@ -193,7 +226,7 @@ public class ReplayReader {
                     replayPacket.timestamp = packetTimestamp;
 
                     if (replayPacket.opcode != 0) {
-                        System.out.println("ERROR: Invalid login packet: " + replayPacket.opcode);
+                        System.out.println("ERROR: Invalid outgoing login packet: " + replayPacket.opcode);
                         return null;
                     }
 
@@ -223,6 +256,12 @@ public class ReplayReader {
 
                     // Set timestamp
                     replayPacket.timestamp = packetTimestamp;
+
+                    boolean success = verifyLogin();
+                    if (!success) {
+                        System.out.println("ERROR: Invalid incoming login packet: " + replayPacket.opcode);
+                        return null;
+                    }
                 }
             } else {
                 int length = readPacketLength();
