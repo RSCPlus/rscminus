@@ -30,14 +30,17 @@ import rscminus.game.entity.WallObject;
 public class PacketBuilder {
     public static final int OPCODE_QUEST_STATUS = 5;
     public static final int OPCODE_FLOOR_SET = 25;
+    public static final int OPCODE_UPDATE_XP = 33;
     public static final int OPCODE_OBJECT_HANDLER = 48;
     public static final int OPCODE_PRIVACY_SETTINGS = 51;
     public static final int OPCODE_SET_INVENTORY = 53;
     public static final int OPCODE_SET_APPEARANCE = 59;
+    public static final int OPCODE_CREATE_NPC = 79;
     public static final int OPCODE_SEND_PM = 87;
     public static final int OPCODE_SET_INVENTORY_SLOT = 90;
     public static final int OPCODE_WALLOBJECT_HANDLER = 91;
     public static final int OPCODE_GROUNDITEM_HANDLER = 99;
+    public static final int OPCODE_UPDATE_NPC = 104;
     public static final int OPCODE_SET_IGNORE = 109;
     public static final int OPCODE_SKIP_TUTORIAL = 111;
     public static final int OPCODE_SET_FATIGUE = 114;
@@ -47,6 +50,7 @@ public class PacketBuilder {
     public static final int OPCODE_UPDATE_FRIEND = 149;
     public static final int OPCODE_SET_EQUIP_STATS = 153;
     public static final int OPCODE_SET_STATS = 156;
+    public static final int OPCODE_UPDATE_STAT = 159;
     public static final int OPCODE_LOGOUT = 165;
     public static final int OPCODE_SHOW_WELCOME = 182;
     public static final int OPCODE_DENY_LOGOUT = 183;

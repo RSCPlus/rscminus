@@ -61,8 +61,10 @@ public class Replay {
         int bitmask = MathUtil.getBitmask(size);
 
         int ret = 0;
-        for (int i = 0; i < byteSize; i++)
-            ret |= (m_data[start + (byteSize - i - 1)] & 0xFF) << (i << 3);
+        for (int i = 0; i < byteSize; i++) {
+            int dataOffset = start + (byteSize - i - 1);
+            ret |= (m_data[dataOffset] & 0xFF) << (i << 3);
+        }
 
         m_bitmaskPosition += size;
         return (ret >> offset) & bitmask;

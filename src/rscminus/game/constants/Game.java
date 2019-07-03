@@ -115,12 +115,24 @@ public class Game {
     public static final int INVENTORY_COUNT = 35;
 
     // Equipment stats
+    public static final int EQUIP_STAT_ARMOUR = 0;
+    public static final int EQUIP_STAT_WEAPONAIM = 1;
+    public static final int EQUIP_STAT_WEAPONPOWER = 2;
+    public static final int EQUIP_STAT_MAGIC = 3;
+    public static final int EQUIP_STAT_PRAYER = 4;
     public static final int EQUIP_STAT_COUNT = 5;
 
     // Prayers
-    public static final int PRAYER_COUNT = 50;
+    public static final int PRAYER_COUNT = 14;
 
     // Stats
+    public static final int STAT_ATTACK = 0;
+    public static final int STAT_DEFENSE = 1;
+    public static final int STAT_STRENGTH = 2;
+    public static final int STAT_HITS = 3;
+    public static final int STAT_RANGED = 4;
+    public static final int STAT_PRAYER = 5;
+    public static final int STAT_MAGIC = 6;
     public static final int STAT_COUNT = 18;
 
     // Chat Types
