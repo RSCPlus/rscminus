@@ -120,6 +120,27 @@ public class ReplayEditor {
             e.printStackTrace();
         }
 
+        // Skew disconnect timestamps
+        boolean firstLogin = false;
+        ReplayPacket previousPacket = null;
+        int skew = 0;
+        for (ReplayPacket packet : m_incomingPackets) {
+            packet.timestamp += skew;
+            if (packet.opcode == VIRTUAL_OPCODE_CONNECT) {
+                if (firstLogin) {
+                    int timestampDiff = packet.timestamp - previousPacket.timestamp;
+                    if (timestampDiff <= 400) {
+                        int offset = 401 - timestampDiff;
+                        skew += offset;
+                        packet.timestamp += offset;
+                        System.out.println("WARNING: Skewing timestamps by +" + offset);
+                    }
+                }
+                firstLogin = true;
+            }
+            previousPacket = packet;
+        }
+
         return true;
     }
 
