@@ -33,11 +33,21 @@ public class ReplayEditor {
     private LinkedList<ReplayPacket> m_incomingPackets = new LinkedList<ReplayPacket>();
     private LinkedList<ReplayPacket> m_outgoingPackets = new LinkedList<ReplayPacket>();
     private ReplayVersion m_replayVersion = new ReplayVersion();
+    private byte[] m_inMetadata = new byte[32];
+    private byte[] m_outMetadata = new byte[32];
 
     public static final int VERSION = 5;
 
     public static final int VIRTUAL_OPCODE_CONNECT = 10000;
     public static final int VIRTUAL_OPCODE_NOP = 10001;
+
+    public byte[] getIncomingMetadata() {
+        return m_inMetadata;
+    }
+
+    public byte[] getOutgoingMetadata() {
+        return m_outMetadata;
+    }
 
     public LinkedList<ReplayPacket> getIncomingPackets() {
         return m_incomingPackets;
@@ -97,7 +107,7 @@ public class ReplayEditor {
         try {
             // Import incoming packets
             ReplayReader incomingReader = new ReplayReader();
-            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, false);
+            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, m_inMetadata, false);
             if (!success)
                 return false;
             while ((replayPacket = incomingReader.readPacket(false)) != null) {
@@ -111,7 +121,7 @@ public class ReplayEditor {
         try {
             // Import outgoing packets
             ReplayReader outgoingReader = new ReplayReader();
-            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, true);
+            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, m_outMetadata, true);
             if (!success)
                 return false;
             while ((replayPacket = outgoingReader.readPacket(false)) != null) {
@@ -236,6 +246,7 @@ public class ReplayEditor {
                 lastTimestamp = packet.timestamp;
             }
             in.writeInt(ReplayReader.TIMESTAMP_EOF);
+            in.write(m_inMetadata);
             in.close();
 
             // Export outgoing packets
@@ -288,6 +299,7 @@ public class ReplayEditor {
                 lastTimestamp = packet.timestamp;
             }
             out.writeInt(ReplayReader.TIMESTAMP_EOF);
+            out.write(m_outMetadata);
             out.close();
         } catch (Exception e) {
             e.printStackTrace();

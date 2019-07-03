@@ -65,7 +65,7 @@ public class ReplayReader {
         return m_data.length;
     }
 
-    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, boolean outgoing) throws IOException {
+    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, byte[] metadata, boolean outgoing) throws IOException {
         int size = calculateSize(f);
 
         if (size == 0)
@@ -101,6 +101,14 @@ public class ReplayReader {
                 m_disconnectOffsets.add(offset);*/
 
             lastTimestamp = timestamp;
+        }
+
+        if (metadata != null) {
+            try {
+                in.skip(4);
+                in.read(metadata);
+            } catch (Exception e) {
+            }
         }
 
         in.close();
