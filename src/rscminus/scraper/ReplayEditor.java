@@ -35,6 +35,8 @@ public class ReplayEditor {
     private ReplayVersion m_replayVersion = new ReplayVersion();
     private byte[] m_inMetadata = new byte[32];
     private byte[] m_outMetadata = new byte[32];
+    private byte[] m_inChecksum = new byte[32];
+    private byte[] m_outChecksum = new byte[32];
 
     public static final int VERSION = 5;
 
@@ -63,6 +65,27 @@ public class ReplayEditor {
 
     public LinkedList<ReplayKeyPair> getKeyPairs() {
         return m_keys;
+    }
+
+    public boolean authenticReplay() {
+        if (m_replayVersion.clientVersion != 235)
+            return false;
+        if (m_replayVersion.version < 3)
+            return true;
+        if (m_replayVersion.version > 3)
+            return false;
+
+        for (int i = 0; i < m_inChecksum.length; i++) {
+            if (m_inChecksum[i] != m_inMetadata[i])
+                return false;
+        }
+
+        for (int i = 0; i < m_outChecksum.length; i++) {
+            if (m_outChecksum[i] != m_outMetadata[i])
+                return false;
+        }
+
+        return true;
     }
 
     public boolean importData(String fname) {
@@ -107,7 +130,7 @@ public class ReplayEditor {
         try {
             // Import incoming packets
             ReplayReader incomingReader = new ReplayReader();
-            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, m_inMetadata, false);
+            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, m_inMetadata, m_inChecksum, false);
             if (!success)
                 return false;
             while ((replayPacket = incomingReader.readPacket(false)) != null) {
@@ -121,7 +144,7 @@ public class ReplayEditor {
         try {
             // Import outgoing packets
             ReplayReader outgoingReader = new ReplayReader();
-            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, m_outMetadata, true);
+            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, m_outMetadata, m_outChecksum, true);
             if (!success)
                 return false;
             while ((replayPacket = outgoingReader.readPacket(false)) != null) {
@@ -246,7 +269,8 @@ public class ReplayEditor {
                 lastTimestamp = packet.timestamp;
             }
             in.writeInt(ReplayReader.TIMESTAMP_EOF);
-            in.write(m_inMetadata);
+            if (m_replayVersion.version >= 3)
+                in.write(m_inMetadata);
             in.close();
 
             // Export outgoing packets
@@ -299,7 +323,8 @@ public class ReplayEditor {
                 lastTimestamp = packet.timestamp;
             }
             out.writeInt(ReplayReader.TIMESTAMP_EOF);
-            out.write(m_outMetadata);
+            if (m_replayVersion.version >= 3)
+                out.write(m_outMetadata);
             out.close();
         } catch (Exception e) {
             e.printStackTrace();

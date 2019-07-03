@@ -41,6 +41,7 @@ public class Scraper {
     private static String sanitizePath = "replays";
     private static String sanitizeOutputPath = "output";
     private static int sanitizeVersion = -1;
+    private static boolean sanitizeForce = false;
     private static boolean sanitizeReplays = false;
     private static boolean sanitizePublicChat = false;
     private static boolean sanitizePrivateChat = false;
@@ -288,6 +289,11 @@ public class Scraper {
 
         if (!success) {
             System.out.println("Replay is not valid, skipping");
+            return;
+        }
+
+        if (!sanitizeForce && !editor.authenticReplay()) {
+            System.out.println("Replay is not an authentic rsc replay");
             return;
         }
 
@@ -612,6 +618,7 @@ public class Scraper {
         System.out.println("\t[OPTIONS] [REPLAY DIRECTORY]");
         System.out.println("options:");
         System.out.println("\t-h\t\t\tShow this usage dialog");
+        System.out.println("\t-z\t\t\tProcess replays even if not authentic");
         System.out.println("\t-s\t\t\tSanitize replays");
         System.out.println("\t-p\t\t\tSanitize public chat");
         System.out.println("\t-x\t\t\tSanitize private chat");
@@ -624,6 +631,9 @@ public class Scraper {
             switch(arg.toLowerCase().substring(0, 2)) {
                 case "-h":
                     return false;
+                case "-z":
+                    sanitizeForce = true;
+                    break;
                 case "-s":
                     sanitizeReplays = true;
                     break;

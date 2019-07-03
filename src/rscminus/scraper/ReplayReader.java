@@ -25,6 +25,8 @@ import rscminus.common.MathUtil;
 import rscminus.common.Sleep;
 
 import java.io.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.zip.GZIPInputStream;
 
@@ -65,11 +67,25 @@ public class ReplayReader {
         return m_data.length;
     }
 
-    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, byte[] metadata, boolean outgoing) throws IOException {
+    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, byte[] metadata, byte[] checksum, boolean outgoing) throws IOException, NoSuchAlgorithmException {
         int size = calculateSize(f);
 
         if (size == 0)
             return false;
+
+        // Calculate checksum
+        try {
+            if (replayVersion.version >= 3) {
+                MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+                DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+                m_data = new byte[calculateRealSize(f)];
+                in.read(m_data);
+                in.read(metadata);
+                in.close();
+                System.arraycopy(messageDigest.digest(m_data), 0, checksum, 0, checksum.length);
+            }
+        } catch (Exception e) {
+        }
 
         // Allocate space for data without replay headers
         m_data = new byte[size];
@@ -101,14 +117,6 @@ public class ReplayReader {
                 m_disconnectOffsets.add(offset);*/
 
             lastTimestamp = timestamp;
-        }
-
-        if (metadata != null) {
-            try {
-                in.skip(4);
-                in.read(metadata);
-            } catch (Exception e) {
-            }
         }
 
         in.close();
@@ -399,6 +407,25 @@ public class ReplayReader {
         if (length >= 160)
             length = 256 * length - (40960 - readUnsignedByte());
         return length;
+    }
+
+    private int calculateRealSize(File f) {
+        int size = 0;
+        try {
+            DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+            while (in.readInt() != TIMESTAMP_EOF) {
+                int length = in.readInt();
+                if (length > 0) {
+                    size += length;
+                    in.skipBytes(length);
+                }
+                size += 8;
+            }
+            in.close();
+        } catch (Exception e) {
+        }
+        size += 4;
+        return size;
     }
 
     private int calculateSize(File f) {
