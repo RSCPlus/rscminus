@@ -616,7 +616,7 @@ public class Scraper {
         System.out.println("\t-p\t\t\tSanitize public chat");
         System.out.println("\t-x\t\t\tSanitize private chat");
         System.out.println("\t-f\t\t\tSanitize friends and ignores");
-        System.out.println("\t-v<0-" + ReplayEditor.VERSION + ">\t\tSet sanitizer replay version");
+        System.out.println("\t-v<0-" + ReplayEditor.VERSION + ">\t\tSet sanitizer replay version (Default is original replay version)");
     }
 
     private static boolean parseArguments(String args[]) {
