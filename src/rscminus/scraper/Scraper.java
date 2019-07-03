@@ -284,6 +284,9 @@ public class Scraper {
         ReplayEditor editor = new ReplayEditor();
         editor.importData(fname);
 
+        System.out.println("client version: " + editor.getReplayVersion().clientVersion);
+        System.out.println("replay version: " + editor.getReplayVersion().version);
+
         // Process incoming packets
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
