@@ -611,11 +611,11 @@ public class Scraper {
         System.out.println("syntax:");
         System.out.println("\t[OPTIONS] [REPLAY DIRECTORY]");
         System.out.println("options:");
-        System.out.println("\t-h\t\t\t\tShow this usage dialog");
-        System.out.println("\t-s\t\t\t\tSanitize replays");
-        System.out.println("\t-p\t\t\t\tSanitize public chat");
-        System.out.println("\t-x\t\t\t\tSanitize private chat");
-        System.out.println("\t-f\t\t\t\tSanitize friends and ignores");
+        System.out.println("\t-h\t\t\tShow this usage dialog");
+        System.out.println("\t-s\t\t\tSanitize replays");
+        System.out.println("\t-p\t\t\tSanitize public chat");
+        System.out.println("\t-x\t\t\tSanitize private chat");
+        System.out.println("\t-f\t\t\tSanitize friends and ignores");
         System.out.println("\t-v<0-" + ReplayEditor.VERSION + ">\t\tSet sanitizer replay version");
     }
 
