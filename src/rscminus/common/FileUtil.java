@@ -19,12 +19,25 @@
 
 package rscminus.common;
 
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.file.Files;
 
 public class FileUtil {
     public static void mkdir(String path) {
         new File(path).mkdirs();
+    }
+
+    public static boolean writeFull(String fname, byte[] data) {
+        try {
+            DataOutputStream os = new DataOutputStream(new FileOutputStream(fname));
+            os.write(data);
+            os.close();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public static byte[] readFull(File f) {

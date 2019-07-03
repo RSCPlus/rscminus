@@ -9,7 +9,7 @@ Thumbs.db
 /[Dd]oc/
 # Ignore files created by rscminus
 /[Rr]eplays/
-/[Ss]anitized/
+/[Oo]utput/
 # Ignore files created by posix people
 *~
 # Ignore vim swapfiles
