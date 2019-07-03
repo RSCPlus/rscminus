@@ -34,7 +34,8 @@ public class ReplayReader {
     LinkedList<Integer> m_disconnectOffsets = new LinkedList<Integer>();
 
     private static final byte[] m_inputDisconnectPattern = {
-            0x40, 0x05, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x1A, 0x00
+            0x40, 0x05, 0x00, 0x6E, 0x00, 0x00, 0x00, 0x1A, 0x00, 0x6C, 0x03, 0x00, 0x00,
+            0x57, 0x65, 0x6C, 0x63
     };
 
     private static final byte[] m_outputDisconnectPattern = {
@@ -51,6 +52,10 @@ public class ReplayReader {
     private ISAACCipher isaac = new ISAACCipher();
 
     public static final int TIMESTAMP_EOF = -1;
+
+    public byte[] getData() {
+        return m_data;
+    }
 
     public int getDataPosition() {
         return m_position;
@@ -179,7 +184,7 @@ public class ReplayReader {
             return false;
 
         for (int i = 0; i < m_inputDisconnectPattern.length; i++) {
-            if (i == 0 || i == 3)
+            if (i == 0 || i == 3 || i == 9)
                 continue;
 
             int offset = m_position + i;

@@ -19,6 +19,7 @@
 
 package rscminus.scraper;
 
+import rscminus.common.FileUtil;
 import rscminus.common.ISAACCipher;
 import rscminus.common.Sleep;
 import rscminus.scraper.client.Class11;
@@ -100,6 +101,7 @@ public class ReplayEditor {
             while ((replayPacket = incomingReader.readPacket(false)) != null) {
                 m_incomingPackets.add(replayPacket);
             }
+            //FileUtil.writeFull("output/in.raw", incomingReader.getData());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -113,6 +115,7 @@ public class ReplayEditor {
             while ((replayPacket = outgoingReader.readPacket(false)) != null) {
                 m_outgoingPackets.add(replayPacket);
             }
+            //FileUtil.writeFull("output/out.raw", outgoingReader.getData());
         } catch (Exception e) {
             e.printStackTrace();
         }
