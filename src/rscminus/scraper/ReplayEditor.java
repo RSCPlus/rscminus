@@ -34,6 +34,8 @@ public class ReplayEditor {
     private LinkedList<ReplayPacket> m_outgoingPackets = new LinkedList<ReplayPacket>();
     private ReplayVersion m_replayVersion = new ReplayVersion();
 
+    public static final int VERSION = 5;
+
     public static final int VIRTUAL_OPCODE_CONNECT = 10000;
     public static final int VIRTUAL_OPCODE_NOP = 10001;
 

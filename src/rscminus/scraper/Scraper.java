@@ -40,6 +40,7 @@ public class Scraper {
     // Settings
     private static String sanitizePath = "replays";
     private static String sanitizeOutputPath = "output";
+    private static int sanitizeVersion = -1;
     private static boolean sanitizeReplays = false;
     private static boolean sanitizePublicChat = false;
     private static boolean sanitizePrivateChat = false;
@@ -407,6 +408,9 @@ public class Scraper {
         }
 
         if (sanitizeReplays) {
+            // Set exported replay version
+            if (sanitizeVersion != -1)
+                editor.getReplayVersion().version = sanitizeVersion;
             String outDir = sanitizeOutputPath + fname.substring(sanitizePath.length());
             outDir = new File(outDir).toPath().toAbsolutePath().toString();
             FileUtil.mkdir(outDir);
@@ -607,16 +611,17 @@ public class Scraper {
         System.out.println("syntax:");
         System.out.println("\t[OPTIONS] [REPLAY DIRECTORY]");
         System.out.println("options:");
-        System.out.println("\t-h\tShow this usage dialog");
-        System.out.println("\t-s\tSanitize replays");
-        System.out.println("\t-p\tSanitize public chat");
-        System.out.println("\t-x\tSanitize private chat");
-        System.out.println("\t-f\tSanitize friends and ignores");
+        System.out.println("\t-h\t\t\t\tShow this usage dialog");
+        System.out.println("\t-s\t\t\t\tSanitize replays");
+        System.out.println("\t-p\t\t\t\tSanitize public chat");
+        System.out.println("\t-x\t\t\t\tSanitize private chat");
+        System.out.println("\t-f\t\t\t\tSanitize friends and ignores");
+        System.out.println("\t-v<0-" + ReplayEditor.VERSION + ">\t\tSet sanitizer replay version");
     }
 
     private static boolean parseArguments(String args[]) {
         for (String arg : args) {
-            switch(arg.toLowerCase()) {
+            switch(arg.toLowerCase().substring(0, 2)) {
                 case "-h":
                     return false;
                 case "-s":
@@ -630,6 +635,16 @@ public class Scraper {
                     break;
                 case "-f":
                     sanitizeFriendsIgnore = true;
+                    break;
+                case "-v":
+                    try {
+                        int version = Integer.parseInt(arg.substring(2, arg.length()));
+                        if (version < 0 || version > ReplayEditor.VERSION)
+                            return false;
+                        sanitizeVersion = version;
+                    } catch (Exception e) {
+                        return false;
+                    }
                     break;
                 default:
                     // Invalid argument
