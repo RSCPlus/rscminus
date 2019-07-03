@@ -60,14 +60,20 @@ public class ReplayReader {
         return m_data.length;
     }
 
-    public void open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, boolean outgoing) throws IOException {
+    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, boolean outgoing) throws IOException {
+        int size = calculateSize(f);
+
+        if (size == 0)
+            return false;
+
         // Allocate space for data without replay headers
-        m_data = new byte[calculateSize(f)];
+        m_data = new byte[size];
         m_outgoing = outgoing;
 
         // Read replay data
         DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
         int timestamp = 0;
+        int lastTimestamp = timestamp;
         int offset = 0;
         int lastOffset = offset;
         LinkedHashMap<Integer,Integer> timestamps = new LinkedHashMap<Integer,Integer>();
@@ -78,6 +84,18 @@ public class ReplayReader {
                 in.read(m_data, offset, length);
                 offset += length;
             }
+
+            // We have reached the end of readable data
+            if (offset >= size)
+                break;
+
+            /*int timestampDiff = timestamp - lastTimestamp;
+            if (replayVersion.version < 1 && timestampDiff > 400)
+                m_disconnectOffsets.add(offset);
+            else if (replayVersion.version >= 1 && length == -1)
+                m_disconnectOffsets.add(offset);*/
+
+            lastTimestamp = timestamp;
         }
 
         in.close();
@@ -152,6 +170,8 @@ public class ReplayReader {
             }
             m_position = 0;
         }
+
+        return true;
     }
 
     private boolean loginBinarySearch() {
@@ -283,8 +303,13 @@ public class ReplayReader {
                     int loginResponse = readUnsignedByte();
                     if ((loginResponse & 64) != 0) {
                         // Set isaac keys
+                        m_keyIndex++;
+                        if (m_keyIndex >= m_keys.size()) {
+                            System.out.println("ERROR: Replay is trying to use non-existing keys");
+                            return null;
+                        }
                         isaac.reset();
-                        isaac.setKeys(m_keys.get(++m_keyIndex).keys);
+                        isaac.setKeys(m_keys.get(m_keyIndex).keys);
                         m_loggedIn = true;
 
                         boolean success = verifyLogin();
@@ -363,18 +388,20 @@ public class ReplayReader {
         return length;
     }
 
-    private int calculateSize(File f) throws IOException {
-        DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
-        int timestamp = 0;
+    private int calculateSize(File f) {
         int size = 0;
-        while ((timestamp = in.readInt()) != TIMESTAMP_EOF) {
-            int length = in.readInt();
-            if (length > 0) {
-                size += length;
-                in.skipBytes(length);
+        try {
+            DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+            while (in.readInt() != TIMESTAMP_EOF) {
+                int length = in.readInt();
+                if (length > 0) {
+                    size += length;
+                    in.skipBytes(length);
+                }
             }
+            in.close();
+        } catch (Exception e) {
         }
-        in.close();
         return size;
     }
 }

@@ -20,6 +20,7 @@
 package rscminus.scraper;
 
 import rscminus.common.FileUtil;
+import rscminus.common.Sleep;
 import rscminus.game.PacketBuilder;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
@@ -282,7 +283,12 @@ public class Scraper {
         System.out.println(fname);
 
         ReplayEditor editor = new ReplayEditor();
-        editor.importData(fname);
+        boolean success = editor.importData(fname);
+
+        if (!success) {
+            System.out.println("Replay is not valid, skipping");
+            return;
+        }
 
         System.out.println("client version: " + editor.getReplayVersion().clientVersion);
         System.out.println("replay version: " + editor.getReplayVersion().version);

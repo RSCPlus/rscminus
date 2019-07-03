@@ -20,6 +20,7 @@
 package rscminus.scraper;
 
 import rscminus.common.ISAACCipher;
+import rscminus.common.Sleep;
 import rscminus.scraper.client.Class11;
 
 import java.io.*;
@@ -62,6 +63,10 @@ public class ReplayEditor {
         if (!keysFile.exists() || !versionFile.exists() || !inFile.exists() || !outFile.exists())
             return false;
 
+        // Files can't be smaller than a certain size
+        if (keysFile.length() < 16 || versionFile.length() < 8)
+            return false;
+
         try {
             // Import version data
             DataInputStream version = new DataInputStream(new FileInputStream(versionFile));
@@ -89,7 +94,9 @@ public class ReplayEditor {
         try {
             // Import incoming packets
             ReplayReader incomingReader = new ReplayReader();
-            incomingReader.open(inFile, m_replayVersion, m_keys, false);
+            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, false);
+            if (!success)
+                return false;
             while ((replayPacket = incomingReader.readPacket(false)) != null) {
                 m_incomingPackets.add(replayPacket);
             }
@@ -100,7 +107,9 @@ public class ReplayEditor {
         try {
             // Import outgoing packets
             ReplayReader outgoingReader = new ReplayReader();
-            outgoingReader.open(outFile, m_replayVersion, m_keys, true);
+            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, true);
+            if (!success)
+                return false;
             while ((replayPacket = outgoingReader.readPacket(false)) != null) {
                 m_outgoingPackets.add(replayPacket);
             }
