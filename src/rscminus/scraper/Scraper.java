@@ -283,14 +283,15 @@ public class Scraper {
 
     private static void setFlags(ReplayEditor editor) {
         byte[] metadata = editor.getMetadata();
+        metadata[ReplayEditor.METADATA_FLAGS_OFFSET] = 0x00;
         if (sanitizePublicChat)
             metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_PUBLIC;
         if (sanitizePrivateChat)
             metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_PRIVATE;
         if (sanitizeFriendsIgnore)
             metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_FRIENDSIGNORES;
-        if (editor.getReplayVersion().version != sanitizeVersion)
-            editor.getMetadata()[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_VERSION;
+        if (sanitizeVersion != -1 && editor.getReplayVersion().version != sanitizeVersion)
+            metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_VERSION;
     }
 
     private static void sanitizeReplay(String fname) {
