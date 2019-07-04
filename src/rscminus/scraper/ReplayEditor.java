@@ -86,6 +86,8 @@ public class ReplayEditor {
             return true;
         if (m_replayVersion.version > 3)
             return false;
+        if (m_metadata[METADATA_FLAGS_OFFSET] != 0x00)
+            return false;
 
         for (int i = 0; i < m_inChecksum.length; i++) {
             if (m_inChecksum[i] != m_inMetadata[i])
