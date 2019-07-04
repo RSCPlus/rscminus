@@ -110,12 +110,12 @@ public class ReplayReader {
             int length = in.readInt();
 
             // Detect extreme disconnects that may be missed
-            int timestampDiff = timestamp - lastTimestamp;
-            if (timestampDiff >= 500) {
-                m_disconnectOffsets.add(offset);
-                System.out.println("WARNING: Using potential extreme disconnect point at offset " + offset);
-                //Sleep.sleep(10000);
-            }
+            //int timestampDiff = timestamp - lastTimestamp;
+            //if (timestampDiff >= 500) {
+            //    m_disconnectOffsets.add(offset);
+            //    System.out.println("WARNING: Using potential extreme disconnect point at offset " + offset);
+            //    Sleep.sleep(10000);
+            //}
 
             if (length > 0) {
                 in.read(m_data, offset, length);
