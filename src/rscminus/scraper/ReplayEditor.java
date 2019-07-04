@@ -46,21 +46,12 @@ public class ReplayEditor {
     public static final int FLAG_SANITIZE_PRIVATE = 0x02;
     public static final int FLAG_SANITIZE_FRIENDSIGNORES = 0x04;
     public static final int FLAG_SANITIZE_VERSION = 0x08;
-    public static final int FLAG_SANITIZE_SANITIZED = 0x10;
-    public static final int FLAG_SANITIZE_RESANITIZED = 0x20;
 
     public static final int VIRTUAL_OPCODE_CONNECT = 10000;
     public static final int VIRTUAL_OPCODE_NOP = 10001;
 
     public byte[] getMetadata() {
         return m_metadata;
-    }
-
-    public void clearFlags() {
-        if (m_metadata[METADATA_FLAGS_OFFSET] != 0x00)
-            m_metadata[METADATA_FLAGS_OFFSET] = FLAG_SANITIZE_RESANITIZED;
-        else
-            m_metadata[METADATA_FLAGS_OFFSET] = FLAG_SANITIZE_SANITIZED;
     }
 
     public LinkedList<ReplayPacket> getIncomingPackets() {

@@ -282,8 +282,6 @@ public class Scraper {
     }
 
     private static void setFlags(ReplayEditor editor) {
-        editor.clearFlags();
-
         byte[] metadata = editor.getMetadata();
         if (sanitizePublicChat)
             metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_PUBLIC;
