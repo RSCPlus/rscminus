@@ -54,6 +54,10 @@ public class ReplayEditor {
         return m_metadata;
     }
 
+    public void clearFlags() {
+        m_metadata[METADATA_FLAGS_OFFSET] = 0x00;
+    }
+
     public LinkedList<ReplayPacket> getIncomingPackets() {
         return m_incomingPackets;
     }
