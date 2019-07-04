@@ -25,6 +25,7 @@ import rscminus.common.Sleep;
 import rscminus.scraper.client.Class11;
 
 import java.io.*;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.zip.GZIPOutputStream;
 
@@ -33,6 +34,7 @@ public class ReplayEditor {
     private LinkedList<ReplayPacket> m_incomingPackets = new LinkedList<ReplayPacket>();
     private LinkedList<ReplayPacket> m_outgoingPackets = new LinkedList<ReplayPacket>();
     private ReplayVersion m_replayVersion = new ReplayVersion();
+    private ReplayMetadata m_replayMetadata = new ReplayMetadata();
     private byte[] m_inMetadata = new byte[32];
     private byte[] m_outMetadata = new byte[32];
     private byte[] m_inChecksum = new byte[32];
@@ -64,6 +66,10 @@ public class ReplayEditor {
 
     public ReplayVersion getReplayVersion() {
         return m_replayVersion;
+    }
+
+    public ReplayMetadata getReplayMetadata() {
+        return m_replayMetadata;
     }
 
     public LinkedList<ReplayKeyPair> getKeyPairs() {
@@ -99,6 +105,7 @@ public class ReplayEditor {
         File versionFile = new File(fname + "/version.bin");
         File inFile = new File(fname + "/in.bin.gz");
         File outFile = new File(fname + "/out.bin.gz");
+        File metadataFile = new File(fname + "/metadata.bin");
 
         // If none of the required files exist, we can't continue
         if (!keysFile.exists() || !versionFile.exists() || !inFile.exists() || !outFile.exists())
@@ -107,6 +114,20 @@ public class ReplayEditor {
         // Files can't be smaller than a certain size
         if (keysFile.length() < 16 || versionFile.length() < 8)
             return false;
+
+        try {
+            // Import metadata data
+            if (metadataFile.exists() && metadataFile.length() >= 8) {
+                DataInputStream metadata = new DataInputStream(new FileInputStream(metadataFile));
+                m_replayMetadata.replayLength = metadata.readInt();
+                m_replayMetadata.dateModified = metadata.readLong();
+                metadata.close();
+            } else {
+                m_replayMetadata.replayLength = 0;
+                m_replayMetadata.dateModified = new Date().getTime();
+            }
+        } catch (Exception e) {
+        }
 
         try {
             // Import version data
@@ -135,7 +156,7 @@ public class ReplayEditor {
         try {
             // Import incoming packets
             ReplayReader incomingReader = new ReplayReader();
-            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, m_inMetadata, m_metadata, m_inChecksum, false);
+            boolean success = incomingReader.open(inFile, m_replayVersion, m_replayMetadata, m_keys, m_inMetadata, m_metadata, m_inChecksum, false);
             if (!success)
                 return false;
             while ((replayPacket = incomingReader.readPacket(false)) != null) {
@@ -149,7 +170,7 @@ public class ReplayEditor {
         try {
             // Import outgoing packets
             ReplayReader outgoingReader = new ReplayReader();
-            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, m_outMetadata, m_metadata, m_outChecksum, true);
+            boolean success = outgoingReader.open(outFile, m_replayVersion, m_replayMetadata, m_keys, m_outMetadata, m_metadata, m_outChecksum, true);
             if (!success)
                 return false;
             while ((replayPacket = outgoingReader.readPacket(false)) != null) {
@@ -190,6 +211,7 @@ public class ReplayEditor {
         File versionFile = new File(fname + "/version.bin");
         File inFile = new File(fname + "/in.bin.gz");
         File outFile = new File(fname + "/out.bin.gz");
+        File metadataFile = new File(fname + "/metadata.bin");
 
         try {
             // Export version info
@@ -276,6 +298,9 @@ public class ReplayEditor {
                     System.out.println("Timestamp is in the past");
                 }
 
+                // Update metadata length
+                m_replayMetadata.replayLength = packet.timestamp;
+
                 lastTimestamp = packet.timestamp;
             }
             in.writeInt(ReplayReader.TIMESTAMP_EOF);
@@ -338,6 +363,12 @@ public class ReplayEditor {
                 out.write(m_outMetadata);
             out.write(m_metadata);
             out.close();
+
+            // Export metadata
+            DataOutputStream metadata = new DataOutputStream(new FileOutputStream(metadataFile));
+            metadata.writeInt(m_replayMetadata.replayLength);
+            metadata.writeLong(m_replayMetadata.dateModified);
+            metadata.close();
         } catch (Exception e) {
             e.printStackTrace();
         }

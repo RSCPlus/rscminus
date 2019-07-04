@@ -68,7 +68,7 @@ public class ReplayReader {
         return m_data.length;
     }
 
-    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, byte[] fileMetadata, byte[] metadata, byte[] checksum, boolean outgoing) throws IOException, NoSuchAlgorithmException {
+    public boolean open(File f, ReplayVersion replayVersion, ReplayMetadata replayMetadata, LinkedList<ReplayKeyPair> keys, byte[] fileMetadata, byte[] metadata, byte[] checksum, boolean outgoing) throws IOException, NoSuchAlgorithmException {
         int size = calculateSize(f);
 
         if (size == 0)
@@ -125,6 +125,9 @@ public class ReplayReader {
             } else if (length == -1) {
                 System.out.println("Verified disconnect at offset " + offset);
             }*/
+
+            // Update replay length
+            replayMetadata.replayLength = timestamp;
 
             lastTimestamp = timestamp;
         }
