@@ -343,10 +343,8 @@ public class ReplayReader {
                         m_forceQuit = true;
                     }
 
-                    if (skipKeys > 0) {
+                    if (skipKeys > 0)
                         System.out.println("WARNING: Skipping " + skipKeys + " keys");
-                        Sleep.sleep(10000);
-                    }
 
                     // Create virtual connect packet
                     replayPacket.opcode = ReplayEditor.VIRTUAL_OPCODE_CONNECT;
