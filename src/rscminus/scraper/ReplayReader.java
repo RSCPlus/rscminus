@@ -109,13 +109,12 @@ public class ReplayReader {
             timestamps.put(offset, timestamp);
             int length = in.readInt();
 
-            // Detect disconnect handlers
-            if (replayVersion.version < 1) {
-                int timestampDiff = timestamp - lastTimestamp;
-                if (timestampDiff > 400)
-                    m_disconnectOffsets.add(offset);
-            } else if (replayVersion.version > 0 && length == -1) {
+            // Detect extreme disconnects that may be missed
+            int timestampDiff = timestamp - lastTimestamp;
+            if (timestampDiff >= 500) {
                 m_disconnectOffsets.add(offset);
+                System.out.println("WARNING: Using potential extreme disconnect point at offset " + offset);
+                //Sleep.sleep(10000);
             }
 
             if (length > 0) {
@@ -383,6 +382,7 @@ public class ReplayReader {
                         replayPacket.data = null;
                         replayPacket.opcode = readUnsignedByte();
                     }
+
                     replayPacket.opcode = (replayPacket.opcode - isaac.getNextValue()) & 0xFF;
                     replayPacket.timestamp = packetTimestamp;
                 } catch (Exception e) {
