@@ -108,6 +108,16 @@ public class ReplayReader {
         while ((timestamp = in.readInt()) != TIMESTAMP_EOF) {
             timestamps.put(offset, timestamp);
             int length = in.readInt();
+
+            // Detect disconnect handlers
+            if (replayVersion.version < 1) {
+                int timestampDiff = timestamp - lastTimestamp;
+                if (timestampDiff > 400)
+                    m_disconnectOffsets.add(offset);
+            } else if (replayVersion.version > 0 && length == -1) {
+                m_disconnectOffsets.add(offset);
+            }
+
             if (length > 0) {
                 in.read(m_data, offset, length);
                 offset += length;
@@ -116,15 +126,6 @@ public class ReplayReader {
             // We have reached the end of readable data
             if (offset >= size)
                 break;
-
-            /*if (replayVersion.version < 1) {
-                int timestampDiff = timestamp - lastTimestamp;
-                if (timestampDiff > 300) {
-                    System.out.println("Potential disconnect at offset " + offset);
-                }
-            } else if (length == -1) {
-                System.out.println("Verified disconnect at offset " + offset);
-            }*/
 
             // Update replay length
             replayMetadata.replayLength = timestamp;
