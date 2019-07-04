@@ -68,7 +68,7 @@ public class ReplayReader {
         return m_data.length;
     }
 
-    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, byte[] metadata, byte[] checksum, boolean outgoing) throws IOException, NoSuchAlgorithmException {
+    public boolean open(File f, ReplayVersion replayVersion, LinkedList<ReplayKeyPair> keys, byte[] fileMetadata, byte[] metadata, byte[] checksum, boolean outgoing) throws IOException, NoSuchAlgorithmException {
         int size = calculateSize(f);
 
         if (size == 0)
@@ -80,10 +80,16 @@ public class ReplayReader {
             DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
             m_data = new byte[calculateRealSize(f)];
             in.read(m_data);
-            try {
+
+            int length = in.read(fileMetadata);
+            if (length < fileMetadata.length) {
+                System.arraycopy(fileMetadata, 0, metadata, 0, metadata.length);
+                for (int i = 0; i < fileMetadata.length; i++)
+                    fileMetadata[i] = 0x00;
+            } else {
                 in.read(metadata);
-            } catch (Exception e) {
             }
+
             in.close();
             System.arraycopy(messageDigest.digest(m_data), 0, checksum, 0, checksum.length);
         }

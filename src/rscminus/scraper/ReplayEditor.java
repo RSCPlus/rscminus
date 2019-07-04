@@ -46,6 +46,8 @@ public class ReplayEditor {
     public static final int FLAG_SANITIZE_PRIVATE = 0x02;
     public static final int FLAG_SANITIZE_FRIENDSIGNORES = 0x04;
     public static final int FLAG_SANITIZE_VERSION = 0x08;
+    public static final int FLAG_SANITIZE_SANITIZED = 0x10;
+    public static final int FLAG_SANITIZE_RESANITIZED = 0x20;
 
     public static final int VIRTUAL_OPCODE_CONNECT = 10000;
     public static final int VIRTUAL_OPCODE_NOP = 10001;
@@ -55,7 +57,10 @@ public class ReplayEditor {
     }
 
     public void clearFlags() {
-        m_metadata[METADATA_FLAGS_OFFSET] = 0x00;
+        if (m_metadata[METADATA_FLAGS_OFFSET] != 0x00)
+            m_metadata[METADATA_FLAGS_OFFSET] = FLAG_SANITIZE_RESANITIZED;
+        else
+            m_metadata[METADATA_FLAGS_OFFSET] = FLAG_SANITIZE_SANITIZED;
     }
 
     public LinkedList<ReplayPacket> getIncomingPackets() {
@@ -137,7 +142,7 @@ public class ReplayEditor {
         try {
             // Import incoming packets
             ReplayReader incomingReader = new ReplayReader();
-            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, m_inMetadata, m_inChecksum, false);
+            boolean success = incomingReader.open(inFile, m_replayVersion, m_keys, m_inMetadata, m_metadata, m_inChecksum, false);
             if (!success)
                 return false;
             while ((replayPacket = incomingReader.readPacket(false)) != null) {
@@ -151,7 +156,7 @@ public class ReplayEditor {
         try {
             // Import outgoing packets
             ReplayReader outgoingReader = new ReplayReader();
-            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, m_outMetadata, m_outChecksum, true);
+            boolean success = outgoingReader.open(outFile, m_replayVersion, m_keys, m_outMetadata, m_metadata, m_outChecksum, true);
             if (!success)
                 return false;
             while ((replayPacket = outgoingReader.readPacket(false)) != null) {
