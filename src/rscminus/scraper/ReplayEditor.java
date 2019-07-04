@@ -37,18 +37,21 @@ public class ReplayEditor {
     private byte[] m_outMetadata = new byte[32];
     private byte[] m_inChecksum = new byte[32];
     private byte[] m_outChecksum = new byte[32];
+    private byte[] m_metadata = new byte[1];
 
     public static final int VERSION = 5;
+
+    public static final int METADATA_FLAGS_OFFSET = 0;
+    public static final int FLAG_SANITIZE_PUBLIC = 0x01;
+    public static final int FLAG_SANITIZE_PRIVATE = 0x02;
+    public static final int FLAG_SANITIZE_FRIENDSIGNORES = 0x04;
+    public static final int FLAG_SANITIZE_VERSION = 0x08;
 
     public static final int VIRTUAL_OPCODE_CONNECT = 10000;
     public static final int VIRTUAL_OPCODE_NOP = 10001;
 
-    public byte[] getIncomingMetadata() {
-        return m_inMetadata;
-    }
-
-    public byte[] getOutgoingMetadata() {
-        return m_outMetadata;
+    public byte[] getMetadata() {
+        return m_metadata;
     }
 
     public LinkedList<ReplayPacket> getIncomingPackets() {
@@ -276,6 +279,7 @@ public class ReplayEditor {
             in.writeInt(ReplayReader.TIMESTAMP_EOF);
             if (m_replayVersion.version >= 3)
                 in.write(m_inMetadata);
+            in.write(m_metadata);
             in.close();
 
             // Export outgoing packets
@@ -330,6 +334,7 @@ public class ReplayEditor {
             out.writeInt(ReplayReader.TIMESTAMP_EOF);
             if (m_replayVersion.version >= 3)
                 out.write(m_outMetadata);
+            out.write(m_metadata);
             out.close();
         } catch (Exception e) {
             e.printStackTrace();

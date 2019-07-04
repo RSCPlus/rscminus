@@ -281,6 +281,18 @@ public class Scraper {
         }
     }
 
+    private static void setFlags(ReplayEditor editor) {
+        byte[] metadata = editor.getMetadata();
+        if (sanitizePublicChat)
+            metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_PUBLIC;
+        if (sanitizePrivateChat)
+            metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_PRIVATE;
+        if (sanitizeFriendsIgnore)
+            metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_FRIENDSIGNORES;
+        if (editor.getReplayVersion().version != sanitizeVersion)
+            editor.getMetadata()[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_VERSION;
+    }
+
     private static void sanitizeReplay(String fname) {
         System.out.println(fname);
 
@@ -299,6 +311,8 @@ public class Scraper {
 
         System.out.println("client version: " + editor.getReplayVersion().clientVersion);
         System.out.println("replay version: " + editor.getReplayVersion().version);
+
+        setFlags(editor);
 
         // Process incoming packets
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
