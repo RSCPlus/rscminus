@@ -168,7 +168,7 @@ public class ReplayEditor {
                         int offset = 401 - timestampDiff;
                         skew += offset;
                         packet.timestamp += offset;
-                        System.out.println("WARNING: Skewing timestamps by +" + offset);
+                        System.out.println("WARNING: Skewing timestamps by +" + offset + " (" + (packet.timestamp - offset) + ":" + packet.timestamp + ")");
                     }
                 }
                 firstLogin = true;
@@ -266,6 +266,11 @@ public class ReplayEditor {
                         in.write(packet.data, 0, packet.data.length);
                     }
                 }
+
+                if (packet.timestamp < lastTimestamp) {
+                    System.out.println("Timestamp is in the past");
+                }
+
                 lastTimestamp = packet.timestamp;
             }
             in.writeInt(ReplayReader.TIMESTAMP_EOF);

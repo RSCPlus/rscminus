@@ -23,6 +23,7 @@ import rscminus.common.FileUtil;
 import rscminus.common.ISAACCipher;
 import rscminus.common.MathUtil;
 import rscminus.common.Sleep;
+import rscminus.game.PacketBuilder;
 
 import java.io.*;
 import java.security.MessageDigest;
@@ -110,11 +111,14 @@ public class ReplayReader {
             if (offset >= size)
                 break;
 
-            /*int timestampDiff = timestamp - lastTimestamp;
-            if (replayVersion.version < 1 && timestampDiff > 400)
-                m_disconnectOffsets.add(offset);
-            else if (replayVersion.version >= 1 && length == -1)
-                m_disconnectOffsets.add(offset);*/
+            /*if (replayVersion.version < 1) {
+                int timestampDiff = timestamp - lastTimestamp;
+                if (timestampDiff > 300) {
+                    System.out.println("Potential disconnect at offset " + offset);
+                }
+            } else if (length == -1) {
+                System.out.println("Verified disconnect at offset " + offset);
+            }*/
 
             lastTimestamp = timestamp;
         }
@@ -129,14 +133,12 @@ public class ReplayReader {
         // Build disconnect map for in.bin
         // Our initial recording implementation had problems with this
         if (!m_outgoing) {
-            boolean firstLogin = false;
+            // Skip first login
+            m_position = 1;
             while (!isEOF()) {
                 if (loginBinarySearch()) {
-                    if (!firstLogin) {
-                        firstLogin = true;
-                    } else {
-                        m_disconnectOffsets.add(m_position);
-                    }
+                    m_disconnectOffsets.add(m_position);
+                    //System.out.println("Disconnect found at offset " + m_position);
                 }
                 skip(1);
             }
@@ -154,6 +156,9 @@ public class ReplayReader {
             } else if (m_disconnectOffsets.contains(m_position + 1)) {
                 m_loggedIn = false;
                 m_position++;
+            } else if (m_disconnectOffsets.contains(m_position + 2)) {
+                m_loggedIn = false;
+                m_position += 2;
             }
 
             if (m_loggedIn || m_outgoing) {
@@ -230,25 +235,10 @@ public class ReplayReader {
         int originalPosition = m_position;
         ReplayPacket packet;
         packet = readPacket(true);
-        if (packet == null || packet.opcode != 51)
+        if (packet == null || packet.opcode != PacketBuilder.OPCODE_PRIVACY_SETTINGS)
             success = false;
         packet = readPacket(true);
-        if (packet == null || packet.opcode != 131)
-            success = false;
-        packet = readPacket(true);
-        if (packet == null || packet.opcode != 240)
-            success = false;
-        packet = readPacket(true);
-        if (packet == null || packet.opcode != 25)
-            success = false;
-        packet = readPacket(true);
-        if (packet == null || packet.opcode != 5)
-            success = false;
-        packet = readPacket(true);
-        if (packet == null || packet.opcode != 111)
-            success = false;
-        packet = readPacket(true);
-        if (packet == null || packet.opcode != 182)
+        if (packet == null || (packet.opcode != PacketBuilder.OPCODE_SEND_MESSAGE && packet.opcode != PacketBuilder.OPCODE_SET_APPEARANCE))
             success = false;
         m_position = originalPosition;
         isaac.reset();
@@ -262,7 +252,7 @@ public class ReplayReader {
 
         int packetTimestamp;
         if (peek)
-            packetTimestamp = m_timestamps.peek();
+            packetTimestamp = 0;//m_timestamps.peek();
         else
             packetTimestamp = m_timestamps.poll();
 
@@ -273,14 +263,21 @@ public class ReplayReader {
             if (m_disconnectOffsets.contains(m_position))
                 m_loggedIn = false;
             m_position = oldPosition;
-        } else {
+        } else if (!peek) {
+            //System.out.println("Checking disconnect at " + m_position);
             // Handle disconnect
             if (m_disconnectOffsets.contains(m_position)) {
                 m_loggedIn = false;
             } else if (m_disconnectOffsets.contains(m_position + 1)) {
+                // This is safe because no packet can ever be 1 byte long
                 m_loggedIn = false;
                 m_position++;
-                System.out.println("WARNING: Disconnect offset off by one");
+            } else if (m_disconnectOffsets.contains(m_position + 2)) {
+                // This is unsafe because a 1 byte packet can be skipped, but since we are disconnecting
+                // it may not matter much anyway since the packet is likely fragmented from the way
+                // the server sends packets.
+                m_loggedIn = false;
+                m_position += 2;
             }
         }
 
@@ -322,24 +319,33 @@ public class ReplayReader {
                 } else {
                     // Handle login response
                     int loginResponse = readUnsignedByte();
+                    int skipKeys = 0;
                     if ((loginResponse & 64) != 0) {
-                        // Set isaac keys
-                        m_keyIndex++;
-                        if (m_keyIndex >= m_keys.size()) {
-                            System.out.println("ERROR: Replay is trying to use non-existing keys");
-                            return null;
-                        }
-                        isaac.reset();
-                        isaac.setKeys(m_keys.get(m_keyIndex).keys);
-                        m_loggedIn = true;
+                        // Find working key
+                        for (;;) {
+                            // Set isaac keys
+                            m_keyIndex++;
+                            if (m_keyIndex >= m_keys.size()) {
+                                System.out.println("ERROR: Replay is trying to use non-existing keys");
+                                return null;
+                            }
+                            isaac.reset();
+                            isaac.setKeys(m_keys.get(m_keyIndex).keys);
+                            m_loggedIn = true;
 
-                        boolean success = verifyLogin();
-                        if (!success) {
-                            System.out.println("ERROR: Invalid incoming login packet");
-                            return null;
+                            boolean success = verifyLogin();
+                            if (!success)
+                                skipKeys++;
+                            else
+                                break;
                         }
                     } else {
                         m_forceQuit = true;
+                    }
+
+                    if (skipKeys > 0) {
+                        System.out.println("WARNING: Skipping " + skipKeys + " keys");
+                        Sleep.sleep(10000);
                     }
 
                     // Create virtual connect packet
@@ -351,25 +357,30 @@ public class ReplayReader {
                     replayPacket.timestamp = packetTimestamp;
                 }
             } else {
-                int length = readPacketLength();
-                if (length > 1) {
-                    int dataLength = length - 1;
-                    replayPacket.data = new byte[dataLength];
-                    if (length < 160) {
-                        replayPacket.data[dataLength - 1] = readByte();
-                        replayPacket.opcode = readUnsignedByte();
-                        if (dataLength > 1)
-                            read(replayPacket.data, 0, dataLength - 1);
+                try {
+                    int length = readPacketLength();
+                    if (length > 1) {
+                        int dataLength = length - 1;
+                        replayPacket.data = new byte[dataLength];
+                        if (length < 160) {
+                            replayPacket.data[dataLength - 1] = readByte();
+                            replayPacket.opcode = readUnsignedByte();
+                            if (dataLength > 1)
+                                read(replayPacket.data, 0, dataLength - 1);
+                        } else {
+                            replayPacket.opcode = readUnsignedByte();
+                            read(replayPacket.data, 0, dataLength);
+                        }
                     } else {
+                        replayPacket.data = null;
                         replayPacket.opcode = readUnsignedByte();
-                        read(replayPacket.data, 0, dataLength);
                     }
-                } else {
-                    replayPacket.data = null;
-                    replayPacket.opcode = readUnsignedByte();
+                    replayPacket.opcode = (replayPacket.opcode - isaac.getNextValue()) & 0xFF;
+                    replayPacket.timestamp = packetTimestamp;
+                } catch (Exception e) {
+                    System.out.println("WARNING: Invalid packet found, trimming replay");
+                    return null;
                 }
-                replayPacket.opcode = (replayPacket.opcode - isaac.getNextValue()) & 0xFF;
-                replayPacket.timestamp = packetTimestamp;
             }
             return replayPacket;
         } catch (Exception e) {
