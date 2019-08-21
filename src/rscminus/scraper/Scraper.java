@@ -435,6 +435,7 @@ public class Scraper {
             outDir = new File(outDir).toPath().toAbsolutePath().toString();
             FileUtil.mkdir(outDir);
             editor.exportData(outDir);
+            editor.exportPCAP(outDir);
         }
     }
 

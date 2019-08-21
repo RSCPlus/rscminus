@@ -373,4 +373,81 @@ public class ReplayEditor {
             e.printStackTrace();
         }
     }
+
+    private void writePCAPPacket(DataOutputStream pcap, ReplayPacket packet, boolean outgoing) throws IOException {
+        if (packet.opcode == VIRTUAL_OPCODE_NOP)
+            return;
+
+        int opcode = packet.opcode;
+        int size = 1;
+        if (opcode == VIRTUAL_OPCODE_CONNECT) {
+            if (outgoing) {
+                opcode = 0;
+                if (packet.data != null)
+                    size += packet.data.length;
+            } else {
+                opcode = packet.data[0];
+            }
+        } else {
+            if (packet.data != null)
+                size += packet.data.length;
+        }
+
+        int timestampMS = packet.timestamp * 20; // Convert timestamp
+        int timestampSeconds = timestampMS / 1000;
+        int timestampMicro = (timestampMS * 1000) % 1000000;
+
+        pcap.writeInt(timestampSeconds); // Timestamp seconds
+        pcap.writeInt(timestampMicro); // Timestamp microseconds
+        pcap.writeInt(size); // Saved length
+        pcap.writeInt(size); // Original length
+
+        pcap.writeByte(opcode);
+        if (size > 1)
+            pcap.write(packet.data);
+    }
+
+    public void exportPCAP(String fname) {
+        // Required files
+        File pcapFile = new File(fname + "/packets.pcap");
+        try {
+            DataOutputStream pcap = new DataOutputStream(new FileOutputStream(pcapFile));
+
+            // Write global header
+            pcap.writeInt(0xa1b2c3d4); // Magic number
+            pcap.writeShort(2); // Version major
+            pcap.writeShort(4); // Version minor
+            pcap.writeInt(0); // Timezone correction (UTC)
+            pcap.writeInt(0); // Timestamp accuracy
+            pcap.writeInt(65535); // Packet snapshot length
+            pcap.writeInt(147); // Data link type (Custom)
+
+            int outgoingIndex = 0;
+            ReplayPacket outgoingPacket = null;
+            for(ReplayPacket packet : m_incomingPackets) {
+                if (outgoingIndex < m_outgoingPackets.size()) {
+                    if (outgoingPacket == null)
+                        outgoingPacket = m_outgoingPackets.get(outgoingIndex);
+                    while (outgoingPacket.timestamp <= packet.timestamp) {
+                        writePCAPPacket(pcap, outgoingPacket, true);
+                        outgoingIndex++;
+                        if (outgoingIndex >= m_outgoingPackets.size())
+                            break;
+                        outgoingPacket = m_outgoingPackets.get(outgoingIndex);
+                    }
+                }
+                writePCAPPacket(pcap, packet, false);
+            }
+
+            // Write remaining outgoing packets
+            while (outgoingIndex < m_outgoingPackets.size()) {
+                ReplayPacket packet = m_outgoingPackets.get(outgoingIndex++);
+                writePCAPPacket(pcap, packet, true);
+            }
+
+            pcap.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
