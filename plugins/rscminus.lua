@@ -5,34 +5,59 @@ VIRTUAL_OPCODE_CONNECT = 10000
 
 -- Server opcodes
 SERVER_OPCODE_PRIVACY_SETTINGS = 51
+SERVER_OPCODE_BANK_CLOSE = 203
+SERVER_OPCODE_SETTINGS = 240
+SERVER_OPCODE_OPTIONS_OPEN = 245
+SERVER_OPCODE_OPTIONS_CLOSE = 252
 
 -- Client opcodes
 CLIENT_OPCODE_CONNECT = 0
+CLIENT_OPCODE_KEEPALIVE = 67
+CLIENT_OPCODE_LOGOUT = 102
+CLIENT_OPCODE_OPTIONS_SELECT = 116
+CLIENT_OPCODE_BANK_CLOSE = 212
 
 clientPacket = ProtoField.uint8("rsc235.clientPacket", "Type", base.HEX)
 clientOpcode = ProtoField.uint32("rsc235.clientOpcode", "Opcode", base.DEC)
+clientPacketLength = ProtoField.string("rsc235.clientPacketLength", "Packet Length")
+clientOption = ProtoField.uint8("rsc235.clientOption", "Option", base.DEC)
 
 serverLoginResponse = ProtoField.int8("rsc235.serverLoginResponse", "Login Response", base.DEC)
-serverBlockChat = ProtoField.bool("rsc235.blockChat", "Block Chat Messages")
-serverBlockPrivate = ProtoField.bool("rsc235.blockPrivate", "Block Private Messages")
-serverBlockTrade = ProtoField.bool("rsc235.blockTrade", "Block Trade Requests")
-serverBlockDuel = ProtoField.bool("rsc235.blockDuel", "Block Duel Requests")
+serverBlockChat = ProtoField.uint8("rsc235.serverBlockChat", "Block Chat Messages", base.HEX)
+serverBlockPrivate = ProtoField.uint8("rsc235.serverBlockPrivate", "Block Private Messages", base.HEX)
+serverBlockTrade = ProtoField.uint8("rsc235.serverBlockTrade", "Block Trade Requests", base.HEX)
+serverBlockDuel = ProtoField.uint8("rsc235.serverBlockDuel", "Block Duel Requests", base.HEX)
+serverCameraModeAuto = ProtoField.uint8("rsc235.serverCameraModeAuto", "Camera Angle Mode", base.HEX)
+serverMouseButtonOne = ProtoField.uint8("rsc235.serverMouseButtonOne", "Mouse Buttons", base.HEX)
+serverSoundDisabled = ProtoField.uint8("rsc235.serverSoundDisabled", "Sound Effects", base.HEX)
+
+commonCount = ProtoField.uint32("rsc235.commonCount", "Count", base.DEC)
+commonString = ProtoField.string("rsc235.serverOption", "String")
 
 rsc235_protocol.fields = {
 	clientPacket,
 	clientOpcode,
+	clientPacketLength,
+	clientOption,
+	
 	serverLoginResponse,
 	serverBlockChat,
 	serverBlockPrivate,
 	serverBlockTrade,
-	serverBlockDuel
+	serverBlockDuel,
+	serverCameraModeAuto,
+	serverMouseButtonOne,
+	serverSoundDisabled,
+	
+	commonCount,
+	commonString
 }
 
 function resolveOpcodeName(clientPacket, opcode)
 	if (clientPacket == 1) then
-		return resolveClientOpcodeName(opcode)
+		return "CLIENT_" .. resolveClientOpcodeName(opcode)
 	else
-		return resolveServerOpcodeName(opcode)
+		return "SERVER_" .. resolveServerOpcodeName(opcode)
 	end
 end
 
@@ -41,6 +66,14 @@ function resolveClientOpcodeName(opcode)
 		return "VIRTUAL_OPCODE_CONNECT"
 	elseif (opcode == CLIENT_OPCODE_CONNECT) then
 		return "OPCODE_CONNECT"
+	elseif (opcode == CLIENT_OPCODE_KEEPALIVE) then
+		return "OPCODE_KEEPALIVE";
+	elseif (opcode == CLIENT_OPCODE_LOGOUT) then
+		return "OPCODE_LOGOUT";
+	elseif (opcode == CLIENT_OPCODE_OPTIONS_SELECT) then
+		return "OPCODE_OPTIONS_SELECT";
+	elseif (opcode == CLIENT_OPCODE_BANK_CLOSE) then
+		return "OPCODE_BANK_CLOSE";
 	else
 		return "OPCODE_UNKNOWN"
 	end
@@ -51,6 +84,14 @@ function resolveServerOpcodeName(opcode)
 		return "VIRTUAL_OPCODE_CONNECT"
 	elseif (opcode == SERVER_OPCODE_PRIVACY_SETTINGS) then
 		return "OPCODE_PRIVACY_SETTINGS"
+	elseif (opcode == SERVER_OPCODE_BANK_CLOSE) then
+		return "OPCODE_BANK_CLOSE"
+	elseif (opcode == SERVER_OPCODE_SETTINGS) then
+		return "OPCODE_SETTINGS"
+	elseif (opcode == SERVER_OPCODE_OPTIONS_OPEN) then
+		return "OPCODE_OPTIONS_OPEN"
+	elseif (opcode == SERVER_OPCODE_OPTIONS_CLOSE) then
+		return "OPCODE_OPTIONS_CLOSE"
 	else
 		return "OPCODE_UNKNOWN"
 	end
@@ -65,14 +106,24 @@ function addOpcodeData(clientPacket, opcode, tree, buffer)
 end
 
 function addOpcodeDataClient(opcode, tree, buffer)
+	local packetLengthBuffer = rsc_getPacketLengthBuffer(buffer, 0)
+	local packetLength = rsc_readPacketLength(packetLengthBuffer)
+	
+	-- Offset buffer by length size
+	buffer = buffer(packetLengthBuffer:len())
+
 	local clientOpcodeData = buffer(0,1)
 	local opcodeName = resolveClientOpcodeName(clientOpcodeData:uint())
+	tree:add(clientPacketLength, packetLengthBuffer, packetLength)
 	local opcodeField = tree:add(clientOpcode, clientOpcodeData)
 	opcodeField:append_text(" (" .. opcodeName .. ")");
 	
 	local clientOpcodeValue = clientOpcodeData:uint()
 	if (clientOpcodeValue == CLIENT_OPCODE_CONNECT) then
 		-- TODO: Show outgoing connect packet
+	elseif (clientOpcodeValue == CLIENT_OPCODE_OPTIONS_SELECT) then
+		local option = buffer(1,1)
+		tree:add(clientOption, option)
 	end
 end
 
@@ -81,8 +132,15 @@ function addOpcodeDataServer(opcode, tree, buffer)
 		local loginResponse = buffer(0,1)
 		tree:add(serverLoginResponse, loginResponse)
 	else
-		local serverOpcode = buffer(0,1)
+		local packetLengthBuffer = rsc_getPacketLengthBuffer(buffer, 0)
+		local packetLength = rsc_readPacketLength(packetLengthBuffer)
+		
+		-- Offset buffer by length size
+		buffer = buffer(packetLengthBuffer:len())
+		
+		local serverOpcode = buffer(packetOffset,1)
 		local opcodeName = resolveServerOpcodeName(serverOpcode:uint())
+		tree:add(clientPacketLength, packetLengthBuffer, packetLength)
 		local opcodeField = tree:add(clientOpcode, serverOpcode)
 		opcodeField:append_text(" (" .. opcodeName .. ")");
 		
@@ -92,12 +150,97 @@ function addOpcodeDataServer(opcode, tree, buffer)
 			local blockPrivate = buffer(2,1)
 			local blockTrade = buffer(3,1)
 			local blockDuel = buffer(4,1)
-			tree:add(serverBlockChat, blockChat)
-			tree:add(serverBlockPrivate, blockPrivate)
-			tree:add(serverBlockTrade, blockTrade)
-			tree:add(serverBlockDuel, blockDuel)
+			local field = tree:add(serverBlockChat, blockChat)
+			if (blockChat:uint() == 0) then
+				field:append_text(" (Off)")
+			else
+				field:append_text(" (On)")
+			end
+			field = tree:add(serverBlockPrivate, blockPrivate)
+			if (blockPrivate:uint() == 0) then
+				field:append_text(" (Off)")
+			else
+				field:append_text(" (On)")
+			end
+			field = tree:add(serverBlockTrade, blockTrade)
+			if (blockTrade:uint() == 0) then
+				field:append_text(" (Off)")
+			else
+				field:append_text(" (On)")
+			end
+			field = tree:add(serverBlockDuel, blockDuel)
+			if (blockDuel:uint() == 0) then
+				field:append_text(" (Off)")
+			else
+				field:append_text(" (On)")
+			end
+		elseif (serverOpcodeValue == SERVER_OPCODE_SETTINGS) then
+			local cameraModeAuto = buffer(1,1)
+			local mouseModeOne = buffer(2,1)
+			local disableSound = buffer(3,1)
+			local field = tree:add(serverCameraModeAuto, cameraModeAuto)
+			if (cameraModeAuto:uint() == 1) then
+				field:append_text(" (Auto)")
+			else
+				field:append_text(" (Manual)")
+			end
+			field = tree:add(serverMouseButtonOne, mouseModeOne)
+			if (mouseModeOne:uint() == 1) then
+				field:append_text(" (One)")
+			else
+				field:append_text(" (Two)")
+			end
+			field = tree:add(serverSoundDisabled, disableSound)
+			if (disableSound:uint() == 1) then
+				field:append_text(" (Disabled)")
+			else
+				field:append_text(" (Enabled)")
+			end
+		elseif (serverOpcodeValue == SERVER_OPCODE_OPTIONS_OPEN) then
+			local optionCount = buffer(1,1)
+			tree:add(commonCount, optionCount)
+			
+			local offset = 2;
+			for i = 0, optionCount:uint() - 1, 1 do
+				local stringBuffer = rsc_getRSCStringBuffer(buffer, offset)
+				local stringValue = rsc_readRSCString(stringBuffer)
+				local stringTree = tree:add(commonString, stringBuffer, "")
+				stringTree:set_text("Option (" .. i .. "): " .. stringValue)
+				offset = offset + stringBuffer:len()
+			end
 		end
 	end
+end
+
+function rsc_getPacketLengthBuffer(buffer, offset)
+	local length = buffer(offset,1)
+	if (length:uint() >= 160) then
+		length = buffer(offset,2)
+	end
+	return length
+end
+
+function rsc_getRSCStringBuffer(buffer, offset)
+	local length = 1;
+	local value = buffer(offset + 1,1)
+	while (value:uint() ~= 0) do
+		length = length + 1
+		value = buffer(offset + length,1)
+	end
+	length = length + 1
+	return buffer(offset, length)
+end
+
+function rsc_readPacketLength(buffer)
+	local length = buffer(0,1):uint()
+	if (buffer:len() > 1) then
+		length = 256 * length - (40960 - buffer(1,1):uint())
+	end
+	return length
+end
+
+function rsc_readRSCString(buffer)
+	return buffer(1,buffer:len() - 2):string()
 end
 
 function rsc235_protocol.dissector(buffer, pinfo, tree)

@@ -377,23 +377,41 @@ public class ReplayEditor {
         }
     }
 
+    private int getLengthSize(int size) {
+        if (size >= 160)
+            return 2;
+        return 1;
+    }
+
+    private void writeLength(DataOutputStream pcap, int size) throws IOException {
+        if (size >= 160) {
+            byte[] length = {(byte)(size / 256 + 160), (byte)(size & 0xFF)};
+            pcap.write(length);
+        } else {
+            pcap.writeByte((byte)size);
+        }
+    }
+
     private void writePCAPPacket(DataOutputStream pcap, ReplayPacket packet, boolean outgoing) throws IOException {
         if (packet.opcode == VIRTUAL_OPCODE_NOP)
             return;
 
         int opcode = packet.opcode;
         int size = 1;
+        int lengthSize = 0;
         if (opcode == VIRTUAL_OPCODE_CONNECT) {
             if (outgoing) {
                 opcode = 0;
                 if (packet.data != null)
                     size += packet.data.length;
+                lengthSize = getLengthSize(size);
             } else {
                 opcode = packet.data[0];
             }
         } else {
             if (packet.data != null)
                 size += packet.data.length;
+            lengthSize = getLengthSize(size);
         }
 
         int timestampMS = packet.timestamp * 20; // Convert timestamp
@@ -402,8 +420,8 @@ public class ReplayEditor {
 
         pcap.writeInt(timestampSeconds); // Timestamp seconds
         pcap.writeInt(timestampMicro); // Timestamp microseconds
-        pcap.writeInt(size + 19); // Saved length
-        pcap.writeInt(size + 19); // Original length
+        pcap.writeInt(size + lengthSize + 19); // Saved length
+        pcap.writeInt(size + lengthSize + 19); // Original length
 
         // Ethernet header
         if (outgoing) {
@@ -419,6 +437,8 @@ public class ReplayEditor {
         pcap.writeByte(outgoing ? 1 : 0); // Client
         pcap.writeInt(packet.opcode);
 
+        if (lengthSize > 0)
+            writeLength(pcap, size);
         pcap.writeByte(opcode);
         if (size > 1)
             pcap.write(packet.data);
