@@ -41,6 +41,9 @@ public class ReplayEditor {
     private byte[] m_outChecksum = new byte[32];
     private byte[] m_metadata = new byte[1];
 
+    private static final byte[] spoofedClientMAC = {(byte)0x00, (byte)0x00, (byte)0x00, (byte)0xCC, (byte)0xCC, (byte)0xCC};
+    private static final byte[] spoofedServerMAC = {(byte)0x00, (byte)0x00, (byte)0x00, (byte)0x55, (byte)0x55, (byte)0x55};
+
     public static final int VERSION = 5;
 
     public static final int METADATA_FLAGS_OFFSET = 0;
@@ -399,8 +402,22 @@ public class ReplayEditor {
 
         pcap.writeInt(timestampSeconds); // Timestamp seconds
         pcap.writeInt(timestampMicro); // Timestamp microseconds
-        pcap.writeInt(size); // Saved length
-        pcap.writeInt(size); // Original length
+        pcap.writeInt(size + 19); // Saved length
+        pcap.writeInt(size + 19); // Original length
+
+        // Ethernet header
+        if (outgoing) {
+            pcap.write(spoofedServerMAC);
+            pcap.write(spoofedClientMAC);
+        } else {
+            pcap.write(spoofedClientMAC);
+            pcap.write(spoofedServerMAC);
+        }
+        pcap.writeShort(0x0);
+
+        // rscminus Header
+        pcap.writeByte(outgoing ? 1 : 0); // Client
+        pcap.writeInt(packet.opcode);
 
         pcap.writeByte(opcode);
         if (size > 1)
@@ -420,7 +437,7 @@ public class ReplayEditor {
             pcap.writeInt(0); // Timezone correction (UTC)
             pcap.writeInt(0); // Timestamp accuracy
             pcap.writeInt(65535); // Packet snapshot length
-            pcap.writeInt(147); // Data link type (Custom)
+            pcap.writeInt(1); // Data link type (Ethernet)
 
             int outgoingIndex = 0;
             ReplayPacket outgoingPacket = null;
