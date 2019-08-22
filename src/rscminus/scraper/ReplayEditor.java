@@ -448,7 +448,7 @@ public class ReplayEditor {
         // Required files
         File pcapFile = new File(fname + "/packets.pcap");
         try {
-            DataOutputStream pcap = new DataOutputStream(new FileOutputStream(pcapFile));
+            DataOutputStream pcap = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(pcapFile)));
 
             // Write global header
             pcap.writeInt(0xa1b2c3d4); // Magic number
