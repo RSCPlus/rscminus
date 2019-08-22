@@ -9,7 +9,7 @@ SERVER_OPCODE_PRIVACY_SETTINGS = 51
 -- Client opcodes
 CLIENT_OPCODE_CONNECT = 0
 
-clientPacket = ProtoField.bool("rsc235.clientPacket", "Client Packet")
+clientPacket = ProtoField.uint8("rsc235.clientPacket", "Type", base.HEX)
 clientOpcode = ProtoField.uint32("rsc235.clientOpcode", "Opcode", base.DEC)
 
 serverLoginResponse = ProtoField.int8("rsc235.serverLoginResponse", "Login Response", base.DEC)
@@ -113,7 +113,13 @@ function rsc235_protocol.dissector(buffer, pinfo, tree)
 	pinfo.cols['info'] = opcodeName
 	
 	local header_subtree = tree:add(rsc235_protocol, buffer(0,5), "rscminus Header")
-	header_subtree:add(clientPacket, clientPacketValue)
+	local clientPacketField = header_subtree:add(clientPacket, clientPacketValue)
+	if (clientPacketValue:uint() == 1) then
+		clientPacketField:append_text(" (Client)");
+	else
+		clientPacketField:append_text(" (Server)");
+	end
+	
 	local clientOpcodeField = header_subtree:add(clientOpcode, clientOpcodeValue)
 	clientOpcodeField:append_text(" (" .. opcodeName .. ")");
 	
