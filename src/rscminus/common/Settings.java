@@ -36,6 +36,7 @@ public class Settings {
   // Stripper Settings
   public static String sanitizePath = "replays";
   public static String sanitizeOutputPath = "sanitized";
+  public static String sanitizeBaseOutputPath = "sanitized";
   public static boolean sanitizePublicChat = false;
   public static boolean sanitizePrivateChat = false;
   public static boolean sanitizeFriendsIgnore = false;

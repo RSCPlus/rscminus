@@ -573,7 +573,7 @@ public class ReplayEditor {
 
     public void exportPCAP(String fname) {
         // Required files
-        File pcapFile = new File(fname + "/packets.pcap");
+        File pcapFile = new File(fname + ".pcap");
         try {
             DataOutputStream pcap = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(pcapFile)));
 
