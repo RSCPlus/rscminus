@@ -1,55 +1,72 @@
 <project name="rscminus" default="run">
-	<property name="src.dir" value="src" />
-	<property name="build.dir" value="build" />
-	
-	<property name="dist.dir" value="dist" />
-	<property name="bin.dir" value="bin" />
+        <property name="src.dir" value="src" />
+        <property name="build.dir" value="build" />
 
-	<property name="jar.main-class" value="rscminus.game.Server" />
-	<property name="jar.name" value="${ant.project.name}.jar" />
-	<property name="jar.file" value="${dist.dir}/${jar.name}" />
+        <property name="dist.dir" value="dist" />
+        <property name="assets.dir" value="assets" />
+        <property name="bin.dir" value="bin" />
 
-	<path id="classpath">
-		<fileset dir="${basedir}">
-			<include name="lib/*.jar" />
-		</fileset>
-	</path>
+        <property name="jar.main-class" value="rscminus.game.Server" />
+        <property name="jar.name" value="${ant.project.name}.jar" />
+        <property name="jar.file" value="${dist.dir}/${jar.name}" />
 
-	<target name="compile">
-		<mkdir dir="${build.dir}" />
-		<javac srcdir="${src.dir}" destdir="${build.dir}" includeantruntime="false">
-			<classpath refid="classpath" />
-		</javac>
-	</target>
+        <property name="jar.main-class.scraper" value="rscminus.scraper.Scraper" />
+        <property name="jar.name.scraper" value="${ant.project.name}-scraper.jar" />
+        <property name="jar.file.scraper" value="${dist.dir}/${jar.name.scraper}" />
 
-	<target name="dist" depends="compile">
-		<mkdir dir="${bin.dir}" />
-		<mkdir dir="${dist.dir}" />
+        <path id="classpath">
+                <fileset dir="${basedir}">
+                        <include name="lib/*.jar" />
+                </fileset>
+        </path>
 
-		<jar destfile="${build.dir}/deps.jar">
-			<zipgroupfileset dir="lib" includes="*.jar" />
-		</jar>
+        <target name="compile">
+                <mkdir dir="${build.dir}" />
+                <javac srcdir="${src.dir}" destdir="${build.dir}" includeantruntime="false" encoding="UTF-8">
+                        <classpath refid="classpath" />
+                </javac>
+        </target>
 
-		<jar destfile="${jar.file}" basedir="${build.dir}">
-			<manifest>
-				<attribute name="Main-Class" value="${jar.main-class}"/>
-			</manifest>
-			<fileset dir=".">
-				<include name="LICENSE" />
-			</fileset>
-			<zipfileset src="${build.dir}/deps.jar" excludes="META-INF/*.SF" />
-		</jar>
-	</target>
+        <target name="dist" depends="compile">
+                <mkdir dir="${bin.dir}" />
+                <mkdir dir="${dist.dir}" />
 
-	<target name="run" depends="dist">
-		<java jar="${jar.file}" dir="${bin.dir}" fork="true" >
-			<jvmarg value="-Xmx512m" />
-		</java>
-	</target>
+                <jar destfile="${build.dir}/deps.jar">
+                        <zipgroupfileset dir="lib" includes="*.jar" />
+                </jar>
 
-	<target name="clean">
-		<delete dir="${build.dir}" />
-		<delete dir="${bin.dir}" />
-		<delete dir="${dist.dir}" />
-	</target>
+                <jar destfile="${jar.file}" basedir="${build.dir}">
+                        <manifest>
+                                <attribute name="Main-Class" value="${jar.main-class}"/>
+                        </manifest>
+                        <fileset dir=".">
+                                <include name="LICENSE" />
+                        </fileset>
+                        <zipfileset src="${build.dir}/deps.jar" excludes="META-INF/*.SF" />
+                </jar>
+
+                <jar destfile="${jar.file.scraper}" basedir="${build.dir}">
+                        <manifest>
+                                <attribute name="Main-Class" value="${jar.main-class.scraper}"/>
+                        </manifest>
+                        <fileset dir=".">
+                                <include name="${assets.dir}/**" />
+                                <include name="LICENSE" />
+                        </fileset>
+                        <zipfileset src="${build.dir}/deps.jar" excludes="META-INF/*.SF" />
+                </jar>
+        </target>
+
+        <target name="run" depends="dist">
+                <java jar="${jar.file}" dir="${bin.dir}" fork="true" >
+                        <jvmarg value="-Xmx512m" />
+                </java>
+        </target>
+
+        <target name="clean">
+                <delete dir="${build.dir}" />
+                <delete dir="${bin.dir}" />
+                <delete dir="${dist.dir}" />
+        </target>
 </project>
+

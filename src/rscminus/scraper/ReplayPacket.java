@@ -19,6 +19,7 @@
 
 package rscminus.scraper;
 
+import rscminus.common.Logger;
 import rscminus.common.MathUtil;
 import rscminus.scraper.client.Class11;
 
@@ -104,6 +105,9 @@ public class ReplayPacket {
 
     public String readString() {
         int length = 0;
+        if (data.length <= 1) {
+            return "";
+        }
         while(data[m_position + length] != '\0')
             length++;
         String ret;
