@@ -22,6 +22,8 @@ package rscminus.scraper;
 import rscminus.common.FileUtil;
 import rscminus.common.ISAACCipher;
 import rscminus.common.Sleep;
+import rscminus.common.Logger;
+import rscminus.common.Settings;
 import rscminus.scraper.client.Class11;
 
 import java.io.*;
@@ -40,11 +42,13 @@ public class ReplayEditor {
     private byte[] m_inChecksum = new byte[32];
     private byte[] m_outChecksum = new byte[32];
     private byte[] m_metadata = new byte[1];
+    public byte readConversionSettings = 0;
 
     private static final byte[] spoofedClientMAC = {(byte)0x00, (byte)0x00, (byte)0x00, (byte)0xCC, (byte)0xCC, (byte)0xCC};
     private static final byte[] spoofedServerMAC = {(byte)0x00, (byte)0x00, (byte)0x00, (byte)0x55, (byte)0x55, (byte)0x55};
 
     public static final int VERSION = 5;
+    public static boolean foundInauthentic = false;
 
     public static final int METADATA_FLAGS_OFFSET = 0;
     public static final int FLAG_SANITIZE_PUBLIC = 0x01;
@@ -80,23 +84,39 @@ public class ReplayEditor {
     }
 
     public boolean authenticReplay() {
-        if (m_replayVersion.clientVersion != 235)
+        if (foundInauthentic) {
+            Logger.Debug("foundInauthentic");
             return false;
-        if (m_replayVersion.version < 3)
-            return true;
-        if (m_replayVersion.version > 3)
-            return false;
-        if (m_metadata[METADATA_FLAGS_OFFSET] != 0x00)
-            return false;
+        }
 
+        if (m_replayVersion.clientVersion != 235) {
+            Logger.Debug("clientVersion != 235");
+            return false;
+        }
+        if (m_replayVersion.version < 3) {
+            return true;
+        }
+        if (m_replayVersion.version > 3) {
+            Logger.Debug("replayVersion > 3");
+            return false;
+        }
+
+        if (readConversionSettings != 0x00) {
+            Logger.Debug("readConversionSettings != 0x00");
+            return false;
+        }
         for (int i = 0; i < m_inChecksum.length; i++) {
-            if (m_inChecksum[i] != m_inMetadata[i])
+            if (m_inChecksum[i] != m_inMetadata[i]) {
+                Logger.Debug("bad in.bin checksum");
                 return false;
+            }
         }
 
         for (int i = 0; i < m_outChecksum.length; i++) {
-            if (m_outChecksum[i] != m_outMetadata[i])
+            if (m_outChecksum[i] != m_outMetadata[i]) {
+                Logger.Debug("bad out.bin checksum");
                 return false;
+            }
         }
 
         return true;
@@ -124,10 +144,32 @@ public class ReplayEditor {
                 DataInputStream metadata = new DataInputStream(new FileInputStream(metadataFile));
                 m_replayMetadata.replayLength = metadata.readInt();
                 m_replayMetadata.dateModified = metadata.readLong();
+
+                long lastLegitDateModified = ((long)1533553582) * 1000; //2018 August 6th 11:06:22 UTC, a couple hours after close because of incorrect timezone on user computer
+                if (m_replayMetadata.dateModified > lastLegitDateModified) {
+                    foundInauthentic = true;
+                    Logger.Warn(String.format("Inauthentic Date Modified %d > %d", m_replayMetadata.dateModified,lastLegitDateModified));
+                }
+
+                if (metadataFile.length() >= 13) {
+                    m_replayMetadata.IPAddress = metadata.readInt();
+                    Scraper.ip_address = m_replayMetadata.IPAddress;
+                    m_replayMetadata.conversionSettings = metadata.readByte();
+                    readConversionSettings = m_replayMetadata.conversionSettings;
+                    m_replayMetadata.conversionSettings |= m_metadata[METADATA_FLAGS_OFFSET];
+                    m_replayMetadata.userField = metadata.readInt();
+                } else { //convert to metadata.bin v2
+                    m_replayMetadata.IPAddress = Scraper.ip_address;
+                    m_replayMetadata.conversionSettings = m_metadata[METADATA_FLAGS_OFFSET];
+                    m_replayMetadata.userField = 0;
+                }
                 metadata.close();
             } else {
-                m_replayMetadata.replayLength = 0;
-                m_replayMetadata.dateModified = new Date().getTime();
+                m_replayMetadata.replayLength = 0; // This gets filled out properly in ReplayReader
+                m_replayMetadata.dateModified = new Date().getTime(); // TODO: Replace this with correct dateModified
+                m_replayMetadata.IPAddress = Scraper.ip_address;
+                m_replayMetadata.conversionSettings = m_metadata[METADATA_FLAGS_OFFSET];
+                m_replayMetadata.userField = 0;
             }
         } catch (Exception e) {
         }
@@ -168,6 +210,7 @@ public class ReplayEditor {
             //FileUtil.writeFull("output/in.raw", incomingReader.getData());
         } catch (Exception e) {
             e.printStackTrace();
+            Logger.Warn(e.getMessage() + " in ReplayEditor.importData. (This usually is because the replay is unplayable/broken)");
         }
 
         try {
@@ -208,7 +251,7 @@ public class ReplayEditor {
         return true;
     }
 
-    public void exportData(String fname) {
+    public void exportData(String fname, String originalDir) {
         // Required files
         File keysFile = new File(fname + "/keys.bin");
         File versionFile = new File(fname + "/version.bin");
@@ -371,10 +414,91 @@ public class ReplayEditor {
             DataOutputStream metadata = new DataOutputStream(new FileOutputStream(metadataFile));
             metadata.writeInt(m_replayMetadata.replayLength);
             metadata.writeLong(m_replayMetadata.dateModified);
+            setIPAddress();
+            metadata.writeInt(m_replayMetadata.IPAddress);
+            Logger.Info(String.format("conversionSettings: %d",m_replayMetadata.conversionSettings));
+            metadata.writeByte(m_replayMetadata.conversionSettings);
+            metadata.writeInt(m_replayMetadata.userField);
             metadata.close();
+            
+            // only copy keyboard.bin if no privacy settings are checked
+            // TODO: we could possibly search the sanitized text and remove it
+            //      from keyboard.bin.gz, if keyboard.bin.gz were more useful
+            //      Would have to handle backspace though.
+
+            if (!Settings.sanitizeFriendsIgnore &&
+                !Settings.sanitizePublicChat &&
+                !Settings.sanitizePrivateChat
+            ) {
+                File keyboardFile = new File(originalDir + "/keyboard.bin.gz");
+                if (keyboardFile.exists()) {
+                    FileUtil.copyFile(keyboardFile,new File(fname + "/keyboard.bin.gz"));
+                }
+            }
+
+            // copy mouse.bin without editing b/c nothing privacy-sensitive can be in it
+            File mouseFile = new File(originalDir + "/mouse.bin.gz");
+            if (mouseFile.exists()) {
+                FileUtil.copyFile(mouseFile,new File(fname + "/mouse.bin.gz"));
+            }
+
+            Scraper.replaysProcessedCount += 1;
+            Scraper.ip_address = -1;
+            Scraper.world_num_excluded = 0;
+
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void setIPAddress() {
+        if (Scraper.ip_address == -1) {
+            if (authenticReplay()) {
+                // World 1: IP address 217.163.53.178
+                // World 2: IP address 217.163.53.179
+                // World 3: IP address 217.163.53.180
+                // World 4: IP address 217.163.53.181
+                // World 5: IP address 217.163.53.182
+                Scraper.ip_address = (217 << 24) + (163 << 16) + (53 << 8) + 177;
+
+                int worldsExcluded = 0;
+                for (int i=0; i < 5; i++) {
+                    worldsExcluded += (Scraper.world_num_excluded >> i) & 0x01;
+                }
+                if (worldsExcluded == 4) { // Rare, but friends on every Classic world but your own, you can tell what world you're on.
+                    Logger.Info(String.format("@|red Using the worldExcluded Method to determine IP Address! worldsExcluded: %d|@",Scraper.world_num_excluded));
+                    int i;
+                    for (i = 0; i <= 5; i++) {
+                        if (((Scraper.world_num_excluded >> i) & 0x01) == 0) {
+                            break;
+                        }
+                    }
+                    Scraper.ip_address += i + 1;
+                    Scraper.ipFoundCount += 1;
+                } else {
+                    // Marks the IP as 217.163.53.0
+                    // 217.163.53.0/24 is assigned to Jagex, so it's just a marker that the replay is believed to be on "some" Jagex server.
+                    Scraper.ip_address &= 0xFFFFFF00;
+                }
+            } else {
+                // Non-authentic replay & no IP address imported
+                Scraper.ip_address = 0;
+            }
+        } else {
+            if (authenticReplay() && Scraper.ip_address > 0 && Scraper.ip_address <= 5) {
+                Scraper.ip_address += (217 << 24) + (163 << 16) + (53 << 8) + 177;
+                Scraper.ipFoundCount += 1;
+            } else {
+                Logger.Warn(String.format("authentic replay: %b", authenticReplay()));
+            }
+        }
+        m_replayMetadata.IPAddress = Scraper.ip_address;
+        Logger.Info(String.format("IP Address determined: %d.%d.%d.%d",
+                (Scraper.ip_address >> 24) & 0xFF,
+                (Scraper.ip_address >> 16) & 0xFF,
+                (Scraper.ip_address >> 8) & 0xFF,
+                (Scraper.ip_address) & 0xFF));
+
     }
 
     private int getLengthSize(int size) {
@@ -415,11 +539,11 @@ public class ReplayEditor {
         }
 
         int timestampMS = packet.timestamp * 20; // Convert timestamp
-        int timestampSeconds = timestampMS / 1000;
-        int timestampMicro = (timestampMS * 1000) % 1000000;
+        int timestampSeconds = (int)((timestampMS + m_replayMetadata.dateModified) / 1000);
+        long timestampMicro = ((long)timestampMS * 1000) % 1000000;
 
         pcap.writeInt(timestampSeconds); // Timestamp seconds
-        pcap.writeInt(timestampMicro); // Timestamp microseconds
+        pcap.writeInt((int)timestampMicro); // Timestamp microseconds
         pcap.writeInt(size + lengthSize + 19); // Saved length
         pcap.writeInt(size + lengthSize + 19); // Original length
 
