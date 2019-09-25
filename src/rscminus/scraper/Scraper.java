@@ -654,7 +654,8 @@ public class Scraper {
             File f = files[i];
             if (f.isDirectory()) {
                 String replayDirectory = f.getAbsolutePath();
-                File replay = new File(replayDirectory + "/in.bin.gz");
+                File replay = new File(replayDirectory + "/keys.bin");
+
                 if (replay.exists()) {
                     Logger.Info("@|cyan Started sanitizing |@" + replayDirectory);
                     sanitizeReplay(replayDirectory);
