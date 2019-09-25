@@ -310,13 +310,13 @@ public class Scraper {
             return;
         }
 
+        Logger.Info("client version: " + editor.getReplayVersion().clientVersion);
+        Logger.Info("replay version: " + editor.getReplayVersion().version);
+
         if (!Settings.sanitizeForce && !editor.authenticReplay()) {
             Logger.Warn("Replay is not an authentic rsc replay");
             return;
         }
-
-        Logger.Info("client version: " + editor.getReplayVersion().clientVersion);
-        Logger.Info("replay version: " + editor.getReplayVersion().version);
 
         Logger.Debug(fname);
 
@@ -336,9 +336,9 @@ public class Scraper {
                             int startPosition = packet.tell();
                             int pid = packet.readUnsignedShort();
                             int updateType = packet.readUnsignedByte();
-                            if (updateType == 0) {
+                            if (updateType == 0) { // bubble overhead
                                 packet.skip(2);
-                            } else if (updateType == 1) {
+                            } else if (updateType == 1) { // chat
                                 packet.skip(1);
                                 packet.readRSCString();
 
@@ -350,7 +350,7 @@ public class Scraper {
                                     playerCount--;
                                     continue;
                                 }
-                            } else if (updateType == 2) {
+                            } else if (updateType == 2) { // damage
                                 packet.skip(3);
                             } else if (updateType == 3) {
                                 packet.skip(4);
@@ -385,6 +385,9 @@ public class Scraper {
                         break;
                     }
                     case PacketBuilder.OPCODE_SET_IGNORE:
+                        if (Settings.sanitizeFriendsIgnore)
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
                     case PacketBuilder.OPCODE_UPDATE_IGNORE:
                         if (Settings.sanitizeFriendsIgnore)
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
@@ -470,10 +473,18 @@ public class Scraper {
             // Set exported replay version
             if (sanitizeVersion != -1)
                 editor.getReplayVersion().version = sanitizeVersion;
-            String outDir = Settings.sanitizeOutputPath + fname.substring(Settings.sanitizePath.length());
+
+            String replayName = fname.substring(Settings.sanitizePath.length());
+
+            String outDir = Settings.sanitizeOutputPath + replayName;
             outDir = new File(outDir).toPath().toAbsolutePath().toString();
             FileUtil.mkdir(outDir);
             editor.exportData(outDir, Settings.sanitizePath);
+
+            // outDir is the folder that everything goes into right now.
+            // we would like the base dir, + strippedReplays + pcaps + directory structure + replayName.pcap
+            outDir = outDir.replace(Settings.sanitizeBaseOutputPath,Settings.sanitizeBaseOutputPath + "/pcaps");
+            FileUtil.mkdir(new File(outDir).getParent());
             editor.exportPCAP(outDir);
         }
     }
@@ -772,7 +783,8 @@ public class Scraper {
 
         stripping = true;
         Settings.sanitizePath = new File(Settings.sanitizePath).toPath().toAbsolutePath().toString();
-        Settings.sanitizeOutputPath = Settings.Dir.JAR + "/strippedReplays";
+        Settings.sanitizeBaseOutputPath = Settings.Dir.JAR + "/strippedReplays";
+        Settings.sanitizeOutputPath = Settings.sanitizeBaseOutputPath;
 
         FileUtil.mkdir(Settings.sanitizePath);
 
