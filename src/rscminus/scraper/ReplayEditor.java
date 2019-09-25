@@ -93,9 +93,7 @@ public class ReplayEditor {
             Logger.Debug("clientVersion != 235");
             return false;
         }
-        if (m_replayVersion.version < 3) {
-            return true;
-        }
+
         if (m_replayVersion.version > 3) {
             Logger.Debug("replayVersion > 3");
             return false;
@@ -105,9 +103,14 @@ public class ReplayEditor {
             Logger.Debug("readConversionSettings != 0x00");
             return false;
         }
+
+        if (m_replayVersion.version < 3) {
+            return true;
+        }
+
         for (int i = 0; i < m_inChecksum.length; i++) {
             if (m_inChecksum[i] != m_inMetadata[i]) {
-                Logger.Debug("bad in.bin checksum");
+                Logger.Debug(String.format("bad in.bin checksum %d != %d, i = %d",m_inChecksum[i], m_inMetadata[i], i));
                 return false;
             }
         }
@@ -489,7 +492,7 @@ public class ReplayEditor {
                 Scraper.ip_address += (217 << 24) + (163 << 16) + (53 << 8) + 177;
                 Scraper.ipFoundCount += 1;
             } else {
-                Logger.Warn(String.format("authentic replay: %b", authenticReplay()));
+                Logger.Warn(String.format("authentic replay: %b, Scraper.ip_address: %d", authenticReplay(), Scraper.ip_address));
             }
         }
         m_replayMetadata.IPAddress = Scraper.ip_address;
