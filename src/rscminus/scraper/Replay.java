@@ -131,9 +131,15 @@ public class Replay {
 
             m_size = calculateSize(path);
             m_data = new byte[m_size];
-            DataInputStream version = new DataInputStream(new BufferedInputStream(new FileInputStream(new File(path + "/version.bin"))));
-            m_version = version.readInt();
-            version.close();
+
+            File versionFile = new File(path + "/version.bin");
+            if (versionFile.exists()) {
+                DataInputStream version = new DataInputStream(new BufferedInputStream(new FileInputStream(versionFile)));
+                m_version = version.readInt();
+                version.close();
+            } else {
+                m_version = 0;
+            }
 
             //System.out.println("version:" + m_version);
 

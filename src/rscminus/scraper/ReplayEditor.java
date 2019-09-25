@@ -37,6 +37,7 @@ public class ReplayEditor {
     private LinkedList<ReplayPacket> m_outgoingPackets = new LinkedList<ReplayPacket>();
     private ReplayVersion m_replayVersion = new ReplayVersion();
     private ReplayMetadata m_replayMetadata = new ReplayMetadata();
+    private boolean m_compressed = false;
     private byte[] m_inMetadata = new byte[32];
     private byte[] m_outMetadata = new byte[32];
     private byte[] m_inChecksum = new byte[32];
@@ -133,12 +134,20 @@ public class ReplayEditor {
         File outFile = new File(fname + "/out.bin.gz");
         File metadataFile = new File(fname + "/metadata.bin");
 
+        if (!inFile.exists())
+            inFile = new File(fname + "/in.bin");
+        if (!outFile.exists())
+            outFile = new File(fname + "/out.bin");
+
         // If none of the required files exist, we can't continue
-        if (!keysFile.exists() || !versionFile.exists() || !inFile.exists() || !outFile.exists())
+        if (!keysFile.exists())
+            return false;
+
+        if (versionFile.exists() && versionFile.length() < 8)
             return false;
 
         // Files can't be smaller than a certain size
-        if (keysFile.length() < 16 || versionFile.length() < 8)
+        if (keysFile.length() < 16)
             return false;
 
         try {
@@ -179,10 +188,15 @@ public class ReplayEditor {
 
         try {
             // Import version data
-            DataInputStream version = new DataInputStream(new FileInputStream(versionFile));
-            m_replayVersion.version = version.readInt();
-            m_replayVersion.clientVersion = version.readInt();
-            version.close();
+            if (versionFile.exists()) {
+                DataInputStream version = new DataInputStream(new FileInputStream(versionFile));
+                m_replayVersion.version = version.readInt();
+                m_replayVersion.clientVersion = version.readInt();
+                version.close();
+            } else {
+                m_replayVersion.version = 0;
+                m_replayVersion.clientVersion = 235;
+            }
 
             // Import keys
             int keyCount = (int) keysFile.length() / 16;
@@ -203,14 +217,16 @@ public class ReplayEditor {
         ReplayPacket replayPacket;
         try {
             // Import incoming packets
-            ReplayReader incomingReader = new ReplayReader();
-            boolean success = incomingReader.open(inFile, m_replayVersion, m_replayMetadata, m_keys, m_inMetadata, m_metadata, m_inChecksum, false);
-            if (!success)
-                return false;
-            while ((replayPacket = incomingReader.readPacket(false)) != null) {
-                m_incomingPackets.add(replayPacket);
+            if (inFile.exists()) {
+                ReplayReader incomingReader = new ReplayReader();
+                boolean success = incomingReader.open(inFile, m_replayVersion, m_replayMetadata, m_keys, m_inMetadata, m_metadata, m_inChecksum, false);
+                if (!success)
+                    return false;
+                while ((replayPacket = incomingReader.readPacket(false)) != null) {
+                    m_incomingPackets.add(replayPacket);
+                }
+                //FileUtil.writeFull("output/in.raw", incomingReader.getData());
             }
-            //FileUtil.writeFull("output/in.raw", incomingReader.getData());
         } catch (Exception e) {
             e.printStackTrace();
             Logger.Warn(e.getMessage() + " in ReplayEditor.importData. (This usually is because the replay is unplayable/broken)");
@@ -218,14 +234,16 @@ public class ReplayEditor {
 
         try {
             // Import outgoing packets
-            ReplayReader outgoingReader = new ReplayReader();
-            boolean success = outgoingReader.open(outFile, m_replayVersion, m_replayMetadata, m_keys, m_outMetadata, m_metadata, m_outChecksum, true);
-            if (!success)
-                return false;
-            while ((replayPacket = outgoingReader.readPacket(false)) != null) {
-                m_outgoingPackets.add(replayPacket);
+            if (outFile.exists()) {
+                ReplayReader outgoingReader = new ReplayReader();
+                boolean success = outgoingReader.open(outFile, m_replayVersion, m_replayMetadata, m_keys, m_outMetadata, m_metadata, m_outChecksum, true);
+                if (!success)
+                    return false;
+                while ((replayPacket = outgoingReader.readPacket(false)) != null) {
+                    m_outgoingPackets.add(replayPacket);
+                }
+                //FileUtil.writeFull("output/out.raw", outgoingReader.getData());
             }
-            //FileUtil.writeFull("output/out.raw", outgoingReader.getData());
         } catch (Exception e) {
             e.printStackTrace();
         }

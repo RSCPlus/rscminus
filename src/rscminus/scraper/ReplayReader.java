@@ -49,6 +49,7 @@ public class ReplayReader {
     private boolean m_loggedIn;
     private boolean m_forceQuit;
     private boolean m_outgoing;
+    private boolean m_compressed;
     private int m_position;
     private LinkedList<ReplayKeyPair> m_keys;
     private int m_keyIndex;
@@ -69,6 +70,8 @@ public class ReplayReader {
     }
 
     public boolean open(File f, ReplayVersion replayVersion, ReplayMetadata replayMetadata, LinkedList<ReplayKeyPair> keys, byte[] fileMetadata, byte[] metadata, byte[] checksum, boolean outgoing) throws IOException, NoSuchAlgorithmException {
+        m_compressed = f.getName().endsWith(".gz");
+
         int size = calculateSize(f);
 
         if (size == 0)
@@ -77,7 +80,12 @@ public class ReplayReader {
         // Calculate checksum
         if (replayVersion.version >= 3) {
             MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-            DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+            DataInputStream in = null;
+            if (m_compressed)
+                in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+            else
+                in = new DataInputStream(new BufferedInputStream(new FileInputStream(f)));
+
             m_data = new byte[calculateRealSize(f)];
             in.read(m_data);
 
@@ -99,7 +107,11 @@ public class ReplayReader {
         m_outgoing = outgoing;
 
         // Read replay data
-        DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+        DataInputStream in = null;
+        if (m_compressed)
+            in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+        else
+            in = new DataInputStream(new BufferedInputStream(new FileInputStream(f)));
         int timestamp = 0;
         int lastTimestamp = timestamp;
         int offset = 0;
@@ -431,7 +443,11 @@ public class ReplayReader {
     private int calculateRealSize(File f) {
         int size = 0;
         try {
-            DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+            DataInputStream in = null;
+            if (m_compressed)
+                in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+            else
+                in = new DataInputStream(new BufferedInputStream(new FileInputStream(f)));
             while (in.readInt() != TIMESTAMP_EOF) {
                 int length = in.readInt();
                 if (length > 0) {
@@ -450,8 +466,14 @@ public class ReplayReader {
     private int calculateSize(File f) {
         int size = 0;
         try {
-            DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
-            while (in.readInt() != TIMESTAMP_EOF) {
+            DataInputStream in = null;
+            if (m_compressed)
+                in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(f))));
+            else
+                in = new DataInputStream(new BufferedInputStream(new FileInputStream(f)));
+
+            int timestamp;
+            while ((timestamp = in.readInt()) != TIMESTAMP_EOF) {
                 int length = in.readInt();
                 if (length > 0) {
                     size += length;
