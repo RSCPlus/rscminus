@@ -115,8 +115,13 @@ public class JGameData {
         npcDefense = new int[npcCount];
         npcAttackable = new int[npcCount];
         npcCommand = new String[npcCount];
-        for (int i = 0; i < npcCount; i++)
+        System.out.println("NPC Names:");
+        for (int i = 0; i < npcCount; i++) {
             npcName[i] = string.readString();
+            System.out.print(npcName[i]);
+            System.out.print(",");
+        }
+        System.out.println();
         for (int i = 0; i < npcCount; i++)
             npcExamine[i] = string.readString();
         for (int i = 0; i < npcCount; i++)
@@ -155,8 +160,14 @@ public class JGameData {
 
         // Read texture data
         int textureCount = integer.readUnsignedShort();
-        for (int i = 0; i < textureCount; i++)
-            string.readString(); // Name
+        System.out.println("TextureNames:");
+        for (int i = 0; i < textureCount; i++) {
+            String textureName = string.readString(); // Name
+            System.out.print(textureName);
+            System.out.print(",");
+        }
+        System.out.println();
+
         for (int i = 0; i < textureCount; i++)
             string.readString(); // Subtype name
 
@@ -164,24 +175,36 @@ public class JGameData {
         animationCount = integer.readUnsignedShort();
         animationName = new String[animationCount];
         animationIndex = new int[animationCount];
-        for (int i = 0; i < animationCount; i++)
+        System.out.println("Animation Names:");
+        for (int i = 0; i < animationCount; i++) {
             animationName[i] = string.readString();
+            System.out.print(animationName[i]);
+            System.out.print(",");
+        }
+        System.out.println();
+
         for (int i = 0; i < animationCount; i++)
-            integer.skip(4); // Unknown
+            integer.skip(4); // CharacterColour
         for (int i = 0; i < animationCount; i++)
             integer.skip(1); // Unknown
         for (int i = 0; i < animationCount; i++)
-            integer.skip(1); // Unknown
+            integer.skip(1); // animationHasA
         for (int i = 0; i < animationCount; i++)
-            integer.skip(1); // Unknown
+            integer.skip(1); // animationHasF
         for (int i = 0; i < animationCount; i++)
-            animationIndex[i] = integer.readUnsignedByte();
+            animationIndex[i] = integer.readUnsignedByte(); //animation number
 
         objectCount = integer.readUnsignedShort();
         objectWidth = new int[objectCount];
         objectHeight = new int[objectCount];
-        for (int i = 0; i < objectCount; i++)
-            string.readString(); // Name
+        System.out.println("Object Names:");
+        for (int i = 0; i < objectCount; i++) {
+            String objectName = string.readString(); // Name
+            System.out.print(objectName);
+            System.out.print(",");
+        }
+        System.out.println();
+
         for (int i = 0; i < objectCount; i++)
             string.readString(); // Examine
         for (int i = 0; i < objectCount; i++)
@@ -202,8 +225,14 @@ public class JGameData {
         wallObjectCount = integer.readUnsignedShort();
         wallObjectAdjacent = new boolean[wallObjectCount];
         wallObjectPassable = new boolean[wallObjectCount];
-        for (int i = 0; i < wallObjectCount; i++)
-            string.readString(); // Name
+        System.out.println("Wall Object Names:");
+        for (int i = 0; i < wallObjectCount; i++) {
+            String wallObjectName = string.readString(); // Name
+            System.out.print(wallObjectName);
+            System.out.print(",");
+        }
+        System.out.println();
+
         for (int i = 0; i < wallObjectCount; i++)
             string.readString(); // Examine
         for (int i = 0; i < wallObjectCount; i++)
