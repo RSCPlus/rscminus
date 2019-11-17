@@ -33,12 +33,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Objects;
 
 import static rscminus.common.Settings.initDir;
 
 public class Scraper {
     private static HashMap<Integer, Integer> m_objects = new HashMap<Integer, Integer>();
     private static HashMap<Integer, Integer> m_wallObjects = new HashMap<Integer, Integer>();
+    private static HashMap<Integer, String> m_npcLocCSV = new HashMap<Integer, String>();
 
     private static final int OBJECT_BLANK = 65536;
 
@@ -245,6 +247,20 @@ public class Scraper {
         }
     }
 
+    private static void dumpNPCLocs(String fname) {
+        try {
+            Logger.Info("There's  a whopping " +  (m_npcLocCSV.size() - 1) + " NPC locs to dump. Please hold.");
+            DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(fname)));
+            for (HashMap.Entry<Integer, String> entry : m_npcLocCSV.entrySet()) {
+                out.writeBytes(entry.getValue());
+            }
+            out.close();
+            Logger.Info("Dumped " + (m_npcLocCSV.size() - 1) + " NPC locs");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private static int packCoordinate(int x, int y) {
         return ((x & 0xFFFF) << 16) | (y & 0xFFFF);
     }
@@ -320,14 +336,37 @@ public class Scraper {
 
         Logger.Debug(fname);
 
-        // Process incoming packets
+        int playerX = -1;
+        int playerY = -1;
+        int planeX = -1;
+        int planeY = -1;
+        int planeFloor = -1;
+        int floorXOffset = -1;
+
+        // Process incoming packet
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
             Logger.Debug(String.format("incoming opcode: %d",packet.opcode));
             try {
+
                 switch (packet.opcode) {
                     case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
                         Logger.Info("loginresponse: " + packet.data[0] + " (timestamp: " + packet.timestamp + ")");
+                        break;
+                    case PacketBuilder.OPCODE_FLOOR_SET:
+                        packet.skip(2);
+                        planeX = packet.readUnsignedShort();
+                        planeY = packet.readUnsignedShort();
+                        planeFloor = packet.readUnsignedShort();
+                        floorXOffset = packet.readUnsignedShort();
+                        break;
+                    case PacketBuilder.OPCODE_CREATE_PLAYERS:
+                        packet.startBitmask();
+                        playerX = packet.readBitmask(11);
+                        playerY = packet.readBitmask(13);
+                        packet.endBitmask();
+                        // fillView(playerX, playerY, objects);
+                        packet.skip(packet.length() - 3);
                         break;
                     case PacketBuilder.OPCODE_UPDATE_PLAYERS: {
                         int originalPlayerCount = packet.readUnsignedShort();
@@ -426,7 +465,43 @@ public class Scraper {
                         if (Settings.sanitizePrivateChat)
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                         break;
+                    case PacketBuilder.OPCODE_CREATE_NPC:
+                        packet.startBitmask();
+                        int npcCount = packet.readBitmask(8);
 
+                        // animation updates (ignored for now)
+                        int animation;
+                        for (int npcIndex = 0; npcIndex < npcCount; npcIndex++) {
+                            if (packet.readBitmask(1) == 1) { // updateRequired
+                                if (packet.readBitmask(1) != 0) { // updateType
+                                    animation = packet.readBitmask(2);
+                                    if (animation != 3) {
+                                        animation <<= 2;
+                                        animation |= packet.readBitmask(2);
+                                    }
+                                }  else  {
+                                    animation = packet.readBitmask(3); // animation
+                                }
+                            }
+                        }
+                        while (ReplayPacket.tellBitmask() + 34 < ReplayPacket.length() * 8) {
+                            long npcServerIndex = packet.readBitmask(12);
+                            int npcXCoordinate = packet.readBitmask(5);
+                            int npcYCoordinate = packet.readBitmask(5);
+                            int npcAnimation = packet.readBitmask(4);
+                            long npcId = packet.readBitmask(10);
+                            m_npcLocCSV.put(m_npcLocCSV.size(), String.format("%s,%d,%d,%d,%d,%d,%d\n",
+                                    fname,
+                                    packet.timestamp,
+                                    (packet.timestamp / 50.0) + editor.getReplayMetadata().dateModified,
+                                    npcId,
+                                    npcServerIndex,
+                                    npcXCoordinate + playerX + planeFloor * floorXOffset,
+                                    npcYCoordinate + playerY
+                            ));
+                        }
+                        packet.endBitmask();
+                        break;
                     default:
                         break;
                 }
@@ -787,6 +862,9 @@ public class Scraper {
         Settings.sanitizeBaseOutputPath = Settings.Dir.JAR + "/strippedReplays";
         Settings.sanitizeOutputPath = Settings.sanitizeBaseOutputPath;
 
+        m_npcLocCSV = new HashMap<Integer, String>();
+        m_npcLocCSV.put(m_npcLocCSV.size(), "replayName,timeStamp,irlTimeStamp,npcId,npcServerIndex (Not Unique!),XCoordinate,YCoordinate");
+
         FileUtil.mkdir(Settings.sanitizePath);
 
         Settings.sanitizeOutputPath = Settings.sanitizeOutputPath + "/" + new File(Settings.sanitizePath).getName();
@@ -799,6 +877,8 @@ public class Scraper {
         } else {
             sanitizeDirectory(Settings.sanitizePath);
         }
+
+        dumpNPCLocs(Settings.scraperOutputPath + "npcLocs.csv");
 
         Logger.Info(String.format("@|green %d out of %d replays were able to have an IP address determined.|@", ipFoundCount, replaysProcessedCount));
         Logger.Info("Saved to " + Settings.sanitizeOutputPath);
