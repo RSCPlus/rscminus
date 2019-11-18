@@ -50,6 +50,7 @@ public class ReplayEditor {
 
     public static final int VERSION = 5;
     public static boolean foundInauthentic = false;
+    public static boolean appendingToReplay = false;
 
     public static final int METADATA_FLAGS_OFFSET = 0;
     public static final int FLAG_SANITIZE_PUBLIC = 0x01;
@@ -224,6 +225,13 @@ public class ReplayEditor {
                     return false;
                 while ((replayPacket = incomingReader.readPacket(false)) != null) {
                     m_incomingPackets.add(replayPacket);
+                }
+
+                if (appendingToReplay) {
+                    LinkedList<ReplayPacket> newPackets = ReplayClientExperiments.GenerateSpriteViewer(m_incomingPackets.getLast().timestamp);
+                    for (int i = 0; i < newPackets.size(); i++) {
+                        m_incomingPackets.add(newPackets.get(i));
+                    }
                 }
                 //FileUtil.writeFull("output/in.raw", incomingReader.getData());
             }

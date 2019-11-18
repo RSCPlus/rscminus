@@ -28,6 +28,7 @@ import rscminus.game.entity.Player;
 import rscminus.game.entity.WallObject;
 
 public class PacketBuilder {
+    public static final int OPCODE_CLOSE_CONNECTION_NOTIFY = 4;
     public static final int OPCODE_QUEST_STATUS = 5;
     public static final int OPCODE_FLOOR_SET = 25;
     public static final int OPCODE_UPDATE_XP = 33;

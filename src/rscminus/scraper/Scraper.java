@@ -36,6 +36,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 
 import static rscminus.common.Settings.initDir;
+import static rscminus.scraper.ReplayEditor.appendingToReplay;
 
 public class Scraper {
     private static HashMap<Integer, Integer> m_objects = new HashMap<Integer, Integer>();
@@ -366,7 +367,7 @@ public class Scraper {
                         playerY = packet.readBitmask(13);
                         packet.endBitmask();
                         // fillView(playerX, playerY, objects);
-                        packet.skip(packet.length() - 3);
+                        packet.skip(packet.data.length - 3);
                         break;
                     case PacketBuilder.OPCODE_UPDATE_PLAYERS: {
                         int originalPlayerCount = packet.readUnsignedShort();
@@ -484,13 +485,13 @@ public class Scraper {
                                 }
                             }
                         }
-                        while (ReplayPacket.tellBitmask() + 34 < ReplayPacket.length() * 8) {
+                        while (packet.tellBitmask() + 34 < packet.data.length * 8) {
                             long npcServerIndex = packet.readBitmask(12);
                             int npcXCoordinate = packet.readBitmask(5);
                             int npcYCoordinate = packet.readBitmask(5);
                             int npcAnimation = packet.readBitmask(4);
                             long npcId = packet.readBitmask(10);
-                            m_npcLocCSV.put(m_npcLocCSV.size(), String.format("%s,%d,%d,%d,%d,%d,%d\n",
+                            m_npcLocCSV.put(m_npcLocCSV.size(), String.format("%s,%d,%f,%d,%d,%d,%d\n",
                                     fname,
                                     packet.timestamp,
                                     (packet.timestamp / 50.0) + editor.getReplayMetadata().dateModified,
@@ -501,6 +502,11 @@ public class Scraper {
                             ));
                         }
                         packet.endBitmask();
+                        break;
+                    case PacketBuilder.OPCODE_CLOSE_CONNECTION_NOTIFY:
+                        if (appendingToReplay) {
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        }
                         break;
                     default:
                         break;
@@ -762,6 +768,7 @@ public class Scraper {
         System.out.println("syntax:");
         System.out.println("\t[OPTIONS] [REPLAY DIRECTORY]");
         System.out.println("options:");
+        System.out.println("\t-a\t\t\tAppend client test data to the end of all replays being processed");
         System.out.println("\t-d\t\t\tDump objects & other data to binary files");
         System.out.println("\t-f\t\t\tRemove opcodes related to the friend's list");
         System.out.println("\t-h\t\t\tShow this usage dialog");
@@ -775,6 +782,9 @@ public class Scraper {
     private static boolean parseArguments(String args[]) {
         for (String arg : args) {
             switch(arg.toLowerCase().substring(0, 2)) {
+                case "-a":
+                    appendingToReplay = true;
+                    break;
                 case "-d":
                     Settings.dumpObjects = true;
                     Settings.dumpWallObjects = true;
