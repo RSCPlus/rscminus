@@ -230,7 +230,7 @@ public final class Class11 {
         }
     }
 
-    final int method241(int var1, int var2, byte[] var3, byte[] var4, int var5, int var6) {
+    private final int method241(int var1, int var2, byte[] var3, byte[] var4, int var5, int var6) {
         int var7 = 0;
         var2 += var1;
 
@@ -278,5 +278,142 @@ public final class Class11 {
 
         return (7 + var8 >> 3) - var6;
     }
+
+    // this one is from client.java, modified though
+    public int method161(byte[] returnBytes, String var2) {
+        byte[] var4 = stringToUnicode(var2);
+        if (var4.length > 255){
+            returnBytes[0] = (byte) ((var4.length & 0xFF00) >> 8);
+            returnBytes[1] = (byte) (var4.length & 0xFF);
+            return method241(0, var4.length, returnBytes, var4, 18695, 2) + 2;
+        } else {
+            returnBytes[0] = (byte) (var4.length & 0xFF);
+            return method241(0, var4.length, returnBytes, var4, 18695, 1) + 1;
+        }
+    }
+
+    // this one is  from Utility.java (and shouldn't be called stringToUnicode, it's just ints used for lookup later, deob junk displayed it as unicode)
+    private byte[] stringToUnicode(String str) {
+        int strlen = str.length();
+        byte[] buf = new byte[strlen];
+        for (int i = 0; i < strlen; i++) {
+            char c = str.charAt(i);
+            if (c > 0 && c < '\200' || c >= '\240' && c <= '\377') {
+                buf[i] = (byte) c;
+                continue;
+            }
+            if (c == '\u20AC') {
+                buf[i] = -128;
+                continue;
+            }
+            if (c == '\u201A') {
+                buf[i] = -126;
+                continue;
+            }
+            if (c == '\u0192') {
+                buf[i] = -125;
+                continue;
+            }
+            if (c == '\u201E') {
+                buf[i] = -124;
+                continue;
+            }
+            if (c == '\u2026') {
+                buf[i] = -123;
+                continue;
+            }
+            if (c == '\u2020') {
+                buf[i] = -122;
+                continue;
+            }
+            if (c == '\u2021') {
+                buf[i] = -121;
+                continue;
+            }
+            if (c == '\u02C6') {
+                buf[i] = -120;
+                continue;
+            }
+            if (c == '\u2030') {
+                buf[i] = -119;
+                continue;
+            }
+            if (c == '\u0160') {
+                buf[i] = -118;
+                continue;
+            }
+            if (c == '\u2039') {
+                buf[i] = -117;
+                continue;
+            }
+            if (c == '\u0152') {
+                buf[i] = -116;
+                continue;
+            }
+            if (c == '\u017D') {
+                buf[i] = -114;
+                continue;
+            }
+            if (c == '\u2018') {
+                buf[i] = -111;
+                continue;
+            }
+            if (c == '\u2019') {
+                buf[i] = -110;
+                continue;
+            }
+            if (c == '\u201C') {
+                buf[i] = -109;
+                continue;
+            }
+            if (c == '\u201D') {
+                buf[i] = -108;
+                continue;
+            }
+            if (c == '\u2022') {
+                buf[i] = -107;
+                continue;
+            }
+            if (c == '\u2013') {
+                buf[i] = -106;
+                continue;
+            }
+            if (c == '\u2014') {
+                buf[i] = -105;
+                continue;
+            }
+            if (c == '\u02DC') {
+                buf[i] = -104;
+                continue;
+            }
+            if (c == '\u2122') {
+                buf[+i] = -103;
+                continue;
+            }
+            if (c == '\u0161') {
+                buf[i] = -102;
+                continue;
+            }
+            if (c == '\u203A') {
+                buf[i] = -101;
+                continue;
+            }
+            if (c == '\u0153') {
+                buf[i] = -100;
+                continue;
+            }
+            if (c == '\u017E') {
+                buf[i] = -98;
+                continue;
+            }
+            if (c == '\u0178')
+                buf[i] = -97;
+            else
+                buf[i] = '?';
+        }
+
+        return buf;
+    }
+
 
 }

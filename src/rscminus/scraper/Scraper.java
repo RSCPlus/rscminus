@@ -47,7 +47,10 @@ public class Scraper {
 
     // Settings
     private static int sanitizeVersion = -1;
-    public static int ip_address = -1;
+    public static int ip_address1 = 0;
+    public static int ip_address2 = 0;
+    public static int ip_address3 = 0xFFFF; //IPv4-mapped IPv6 addresses dictate this, 0:0:0:0:0:FFFF::/96; rfc4291 section 2.5.5.2
+    public static int ip_address4 = -1;
     public static int world_num_excluded = 0;
 
     private static StripperWindow stripperWindow;
@@ -444,7 +447,7 @@ public class Scraper {
                                 if (world.startsWith("Classic")) {
                                     if (onlineStatus == 6) { // same world
                                         int worldNum = Integer.parseInt(world.substring(world.length() - 1));
-                                        Scraper.ip_address = worldNum;
+                                        Scraper.ip_address4 = worldNum;
                                     } else {
                                         int worldNumExcluded = Integer.parseInt(world.substring(world.length() - 1));
                                         if (worldNumExcluded <= 5) {
