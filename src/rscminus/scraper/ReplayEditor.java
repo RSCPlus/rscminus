@@ -57,6 +57,7 @@ public class ReplayEditor {
     public static final int FLAG_SANITIZE_PRIVATE = 0x02;
     public static final int FLAG_SANITIZE_FRIENDSIGNORES = 0x04;
     public static final int FLAG_SANITIZE_VERSION = 0x08;
+    public static final int FLAG_SANITIZE_COPY_ONLY = 128;
 
     public static final int VIRTUAL_OPCODE_CONNECT = 10000;
     public static final int VIRTUAL_OPCODE_NOP = 10001;
@@ -287,6 +288,63 @@ public class ReplayEditor {
         }
 
         return true;
+    }
+
+    public void justUpdateMetadata(String fname, String originalDir) {
+            // Required files
+            File keysFile = new File(fname + "/keys.bin");
+            File versionFile = new File(fname + "/version.bin");
+            File inFile = new File(fname + "/in.bin.gz");
+            File outFile = new File(fname + "/out.bin.gz");
+            File metadataFile = new File(fname + "/metadata.bin");
+
+            try {
+
+                if (keysFile.exists()) {
+                    FileUtil.copyFile(keysFile, new File(fname + "/keys.bin"));
+                }
+                if (versionFile.exists()) {
+                    FileUtil.copyFile(versionFile, new File(fname + "/version.bin"));
+                }
+                if (inFile.exists()) {
+                    FileUtil.copyFile(inFile, new File(fname + "/in.bin.gz"));
+                }
+                if (outFile.exists()) {
+                    FileUtil.copyFile(outFile, new File(fname + "/out.bin.gz"));
+                }
+
+
+                // Export metadata
+                DataOutputStream metadata = new DataOutputStream(new FileOutputStream(metadataFile));
+                metadata.writeInt(m_replayMetadata.replayLength);
+                metadata.writeLong(m_replayMetadata.dateModified);
+                setIPAddress();
+                Logger.Info(String.format("ip: %d:%d:%d:%d",m_replayMetadata.IPAddress1,m_replayMetadata.IPAddress2,m_replayMetadata.IPAddress3,m_replayMetadata.IPAddress4));
+                metadata.writeInt(m_replayMetadata.IPAddress1); // IPv6
+                metadata.writeInt(m_replayMetadata.IPAddress2); // IPv6
+                metadata.writeInt(m_replayMetadata.IPAddress3); // IPv6
+                metadata.writeInt(m_replayMetadata.IPAddress4); // IPv4/IPv6
+                metadata.writeByte(FLAG_SANITIZE_COPY_ONLY); //conversion settings; 128
+                metadata.writeInt(m_replayMetadata.userField);
+                metadata.close();
+
+                File keyboardFile = new File(originalDir + "/keyboard.bin.gz");
+                if (keyboardFile.exists()) {
+                    FileUtil.copyFile(keyboardFile, new File(fname + "/keyboard.bin.gz"));
+                }
+
+                File mouseFile = new File(originalDir + "/mouse.bin.gz");
+                if (mouseFile.exists()) {
+                    FileUtil.copyFile(mouseFile,new File(fname + "/mouse.bin.gz"));
+                }
+
+                Scraper.replaysProcessedCount += 1;
+                Scraper.ip_address4 = -1;
+                Scraper.world_num_excluded = 0;
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
     }
 
     public void exportData(String fname, String originalDir) {

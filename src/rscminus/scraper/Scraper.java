@@ -563,7 +563,11 @@ public class Scraper {
             String outDir = Settings.sanitizeOutputPath + replayName;
             outDir = new File(outDir).toPath().toAbsolutePath().toString();
             FileUtil.mkdir(outDir);
-            editor.exportData(outDir, Settings.sanitizePath);
+            if (false) {
+                editor.justUpdateMetadata(outDir, Settings.sanitizePath);
+            } else {
+                editor.exportData(outDir, Settings.sanitizePath);
+            }
 
             // outDir is the folder that everything goes into right now.
             // we would like the base dir, + strippedReplays + pcaps + directory structure + replayName.pcap
