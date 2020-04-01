@@ -221,9 +221,9 @@ public class Player extends Entity {
 
     public void sendClientState() {
         PacketBuilder.privacySettings(false, false, false, false, m_outgoingStream, m_isaacOutgoing);
-        PacketBuilder.setFloor(m_index, getFloor(), m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.sendMessage(Game.CHAT_QUEST, "Welcome to " + Server.getInstance().getName() + "!", null, null, null, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.gameSettings(false, false, false, m_outgoingStream, m_isaacOutgoing);
+        PacketBuilder.setFloor(m_index, getFloor(), m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.questStatus(m_questComplete, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.skipTutorial(m_tutorial, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.showWelcome(0x7F000001, 0, Game.WELCOME_RECOVERY_UNSET, Game.WELCOME_MESSAGES_SHOW, m_outgoingStream, m_isaacOutgoing);
@@ -263,8 +263,9 @@ public class Player extends Entity {
         m_saveInfo.inventoryEquipped[10] = false;
         PacketBuilder.setInventory(m_saveInfo, m_outgoingStream, m_isaacOutgoing);
 
-        // Repeat?
-        //PacketBuilder.setFloor(m_index, getFloor(), m_outgoingStream, m_isaacOutgoing);
+        // Repeat setting floor unnecessarily b/c it is authentic
+        PacketBuilder.setFloor(m_index, getFloor(), m_outgoingStream, m_isaacOutgoing);
+
         PacketBuilder.setStats(m_saveInfo, m_questPoints, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.setEquipStats(m_equipmentStats, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.setPrayers(m_prayers, m_outgoingStream, m_isaacOutgoing);
