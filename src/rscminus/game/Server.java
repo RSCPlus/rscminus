@@ -41,7 +41,7 @@ public class Server implements Runnable {
     // Constants
     public static final int DEFAULT_PORT = 43594;
     public static final int DEFAULT_PLAYER_MAX = 5000;
-    public static final int DEFAULT_TICK_RATE = 650;
+    public static final int DEFAULT_TICK_RATE = 640;
     public static final String DEFAULT_SERVER_NAME = "RuneScape";
 
     public Server() {

@@ -88,22 +88,23 @@ public class ReplayEditor {
 
     public boolean authenticReplay() {
         if (foundInauthentic) {
-            Logger.Debug("foundInauthentic");
+            Logger.Info("foundInauthentic");
+            foundInauthentic = false;
             return false;
         }
 
         if (m_replayVersion.clientVersion != 235) {
-            Logger.Debug("clientVersion != 235");
+            Logger.Info("clientVersion != 235");
             return false;
         }
 
         if (m_replayVersion.version > 3) {
-            Logger.Debug("replayVersion > 3");
+            Logger.Info("replayVersion > 3");
             return false;
         }
 
-        if (readConversionSettings != 0x00) {
-            Logger.Debug("readConversionSettings != 0x00");
+        if (readConversionSettings != -128) {
+            Logger.Info(String.format("readConversionSettings != -128, instead == %d", readConversionSettings));
             return false;
         }
 
@@ -113,14 +114,14 @@ public class ReplayEditor {
 
         for (int i = 0; i < m_inChecksum.length; i++) {
             if (m_inChecksum[i] != m_inMetadata[i]) {
-                Logger.Debug(String.format("bad in.bin checksum %d != %d, i = %d",m_inChecksum[i], m_inMetadata[i], i));
+                Logger.Info(String.format("bad in.bin checksum %d != %d, i = %d",m_inChecksum[i], m_inMetadata[i], i));
                 return false;
             }
         }
 
         for (int i = 0; i < m_outChecksum.length; i++) {
             if (m_outChecksum[i] != m_outMetadata[i]) {
-                Logger.Debug("bad out.bin checksum");
+                Logger.Info("bad out.bin checksum");
                 return false;
             }
         }
