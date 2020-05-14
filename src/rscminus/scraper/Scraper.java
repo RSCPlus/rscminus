@@ -1028,6 +1028,8 @@ public class Scraper {
         stripping = true;
         Settings.sanitizePath = new File(Settings.sanitizePath).toPath().toAbsolutePath().toString();
         Settings.sanitizeBaseOutputPath = Settings.Dir.JAR + "/strippedReplays";
+        Settings.scraperOutputPath = Settings.Dir.JAR + "/dump/";
+        FileUtil.mkdir(Settings.scraperOutputPath);
         Settings.sanitizeOutputPath = Settings.sanitizeBaseOutputPath;
 
         if (Settings.dumpNpcLocs) {
