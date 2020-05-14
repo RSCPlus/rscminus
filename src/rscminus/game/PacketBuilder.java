@@ -62,6 +62,7 @@ public class PacketBuilder {
     public static final int OPCODE_UPDATE_PLAYERS = 234;
     public static final int OPCODE_UPDATE_IGNORE = 237;
     public static final int OPCODE_GAME_SETTINGS = 240;
+    public static final int OPCODE_DIALOGUE_OPTIONS = 245;
 
     private static int m_offset = 0;
     private static int m_count = 0;

@@ -26,6 +26,7 @@ import rscminus.common.Settings;
 import rscminus.game.PacketBuilder;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
+import rscminus.scraper.client.Character;
 
 import java.awt.*;
 import java.io.DataOutputStream;
@@ -42,6 +43,8 @@ public class Scraper {
     private static HashMap<Integer, Integer> m_objects = new HashMap<Integer, Integer>();
     private static HashMap<Integer, Integer> m_wallObjects = new HashMap<Integer, Integer>();
     private static HashMap<Integer, String> m_npcLocCSV = new HashMap<Integer, String>();
+    private static HashMap<Integer, String> m_messageSQL = new HashMap<Integer, String>();
+
 
     private static final int OBJECT_BLANK = 65536;
 
@@ -59,6 +62,53 @@ public class Scraper {
     public static boolean stripping = false;
     public static int ipFoundCount = 0;
     public static int replaysProcessedCount = 0;
+
+    public static Character[] npcsCache = new Character[500];
+    public static Character[] npcs = new Character[500];
+    public static Character[] npcsServer = new Character[5000];
+    public static int npcCount = 0;
+    public static int npcCacheCount = 0;
+    public static int highestOption = 0;
+
+    private static Character createNpc(int serverIndex, int type, int x, int y, int sprite) {
+        if (npcsServer[serverIndex] == null) {
+            npcsServer[serverIndex] = new Character();
+            npcsServer[serverIndex].serverIndex = serverIndex;
+        }
+
+        Character character = npcsServer[serverIndex];
+        boolean foundNpc = false;
+
+        for (int var9 = 0; npcCacheCount > var9; ++var9) {
+            if (serverIndex == npcsCache[var9].serverIndex) {
+                foundNpc = true;
+                break;
+            }
+        }
+
+        if (foundNpc) {
+            character.animationNext = sprite;
+            character.npcId = type;
+            int waypointIdx = character.waypointCurrent;
+            if (character.waypointsX[waypointIdx] != x || y != character.waypointsY[waypointIdx]) {
+                character.waypointCurrent = waypointIdx = (1 + waypointIdx) % 10;
+                character.waypointsX[waypointIdx] = x;
+                character.waypointsY[waypointIdx] = y;
+            }
+        } else {
+            character.waypointsX[0] = character.currentX = x;
+            character.waypointCurrent = 0;
+            character.serverIndex = serverIndex;
+            character.movingStep = 0;
+            character.stepCount = 0;
+            character.npcId = type;
+            character.waypointsY[0] = character.currentY = y;
+            character.animationNext = character.animationCurrent = sprite;
+        }
+
+        npcs[npcCount++] = character;
+        return character;
+    }
 
     private static boolean objectIDBlacklisted(int id, int x, int y) {
         boolean blacklist = false;
@@ -265,6 +315,20 @@ public class Scraper {
         }
     }
 
+    private static void dumpMessages(String fname) {
+        try {
+            Logger.Info("There's  a whopping " +  (m_messageSQL.size() - 1) + " messages to dump. Please hold.");
+            DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(fname)));
+            for (HashMap.Entry<Integer, String> entry : m_messageSQL.entrySet()) {
+                out.writeBytes(entry.getValue());
+            }
+            out.close();
+            Logger.Info("Dumped " + (m_messageSQL.size() - 1) + " messages!");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private static int packCoordinate(int x, int y) {
         return ((x & 0xFFFF) << 16) | (y & 0xFFFF);
     }
@@ -347,6 +411,16 @@ public class Scraper {
         int planeFloor = -1;
         int floorXOffset = -1;
 
+        if (Settings.dumpMessages) {
+            m_messageSQL.put(m_messageSQL.size(),
+                    String.format("%s%d', \"%s\");\n",
+                            "INSERT INTO `rscMessages`.`replayDictionary` (`index`, `filePath`) VALUES ('",
+                            Scraper.replaysProcessedCount,
+                            fname.replaceFirst(Settings.sanitizePath, "").replaceAll("\"", "\\\"")
+                    )
+            );
+        }
+
         // Process incoming packet
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
@@ -363,6 +437,60 @@ public class Scraper {
                         planeY = packet.readUnsignedShort();
                         planeFloor = packet.readUnsignedShort();
                         floorXOffset = packet.readUnsignedShort();
+                        break;
+                    case PacketBuilder.OPCODE_SEND_MESSAGE:
+                        if (Settings.dumpMessages) {
+                            int type = packet.readUnsignedByte();
+                            int infoContained = packet.readUnsignedByte();
+
+                            String sendMessage = packet.readPaddedString();
+
+                            String sender = "";
+                            String clan = "";
+                            String color = "";
+                            if ((infoContained & 1) != 0) {
+                                sender = packet.readPaddedString();
+                                clan = packet.readPaddedString();
+                            }
+
+                            if ((infoContained & 2) != 0) {
+                                color = packet.readPaddedString();
+                            }
+                            m_messageSQL.put(m_messageSQL.size(),
+                                    "INSERT INTO `rscMessages`.`SEND_MESSAGE` (`replayIndex`, `timestamp`, `messageType`, `infoContained`, `message`, `sender`, `sender2`, `color`) VALUES " +
+                                            String.format("('%d', '%d', '%d', '%d', \"%s\", '%s', '%s', '%s');\n",
+                                                    Scraper.replaysProcessedCount,
+                                                    packet.timestamp,
+                                                    type,
+                                                    infoContained,
+                                                    sendMessage.replaceAll("\"", "\\\""),
+                                                    sender,
+                                                    clan,
+                                                    color)
+                            );
+                        }
+                        break;
+                    case PacketBuilder.OPCODE_DIALOGUE_OPTIONS:
+                        if (Settings.dumpMessages) {
+                            int numberOfOptions = packet.readUnsignedByte();
+                            if (numberOfOptions > highestOption) {
+                                highestOption = numberOfOptions;
+                            }
+                            String dialogueOptionsInsert = "INSERT INTO `rscMessages`.`DIALOGUE_OPTION` (`replayIndex`, `timestamp`, `numberOfOptions`";
+                            String dialogueOptionsValues = String.format("'%d', '%d', '%d'", Scraper.replaysProcessedCount, packet.timestamp, numberOfOptions);
+
+                            for (int i = 1; i <= numberOfOptions; i++) {
+                                dialogueOptionsInsert = String.format("%s%s%d%s",dialogueOptionsInsert, ", `choice", i, "`");
+                                dialogueOptionsValues += String.format(", \"%s\"", packet.readPaddedString().replaceAll("\"", "\\\""));
+                            }
+
+                            m_messageSQL.put(m_messageSQL.size(), String.format("%s%s%s%s",
+                                    dialogueOptionsInsert,
+                                    ") VALUES (",
+                                    dialogueOptionsValues,
+                                    ");\n")
+                            );
+                        }
                         break;
                     case PacketBuilder.OPCODE_CREATE_PLAYERS:
                         packet.startBitmask();
@@ -406,8 +534,19 @@ public class Scraper {
                                 int equipCount = packet.readUnsignedByte();
                                 packet.skip(equipCount);
                                 packet.skip(6);
-                            } else if (updateType == 6) {
-                                packet.readRSCString();
+                            } else if (updateType == 6) { // quest chat
+                                String message = packet.readRSCString();
+                                if (Settings.dumpMessages) {
+                                    m_messageSQL.put(m_messageSQL.size(),
+                                            "INSERT INTO `rscMessages`.`UPDATE_PLAYERS_TYPE_6` (`replayIndex`, `timestamp`, `pid`, `message`) VALUES " +
+                                                    String.format("('%d', '%d', '%d', \"%s\");\n",
+                                                            Scraper.replaysProcessedCount,
+                                                            packet.timestamp,
+                                                            pid,
+                                                            message.replaceAll("\"", "\\\"")
+                                                    )
+                                    );
+                                }
                             } else {
                                 packet.skip(2);
                                 packet.readPaddedString();
@@ -470,41 +609,121 @@ public class Scraper {
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                         break;
                     case PacketBuilder.OPCODE_CREATE_NPC:
-                        packet.startBitmask();
-                        int npcCount = packet.readBitmask(8);
+                        if (Settings.needNpcCreation) {
+                            npcCacheCount = npcCount;
+                            npcCount = 0;
+                            for (int index = 0; index < npcCacheCount; ++index) {
+                                npcsCache[index] = npcs[index];
+                            }
 
-                        // animation updates (ignored for now)
-                        int animation;
-                        for (int npcIndex = 0; npcIndex < npcCount; npcIndex++) {
-                            if (packet.readBitmask(1) == 1) { // updateRequired
-                                if (packet.readBitmask(1) != 0) { // updateType
-                                    animation = packet.readBitmask(2);
-                                    if (animation != 3) {
-                                        animation <<= 2;
-                                        animation |= packet.readBitmask(2);
+                            packet.startBitmask();
+                            int createNpcCount = packet.readBitmask(8);
+                            int animation;
+                            for (int npcIndex = 0; npcIndex < createNpcCount; npcIndex++) {
+                                Character npc = npcsCache[npcIndex];
+                                int reqUpdate = packet.readBitmask(1);
+                                if (reqUpdate == 1) {
+                                    int updateType = packet.readBitmask(1);
+                                    if (updateType != 0) { // stationary animation update
+                                        animation = packet.readBitmask(2);
+                                        if (animation != 3) {
+                                            animation <<= 2;
+                                            animation |= packet.readBitmask(2);
+
+                                            npc.animationNext = animation;
+                                        } else {
+                                            // npc is removed
+                                            continue;
+                                        }
+                                    } else { // npc is moving to another tile
+                                        int nextAnim = packet.readBitmask(3); // animation
+                                        int var11 = npc.waypointCurrent;
+                                        int var12 = npc.waypointsX[var11];
+                                        if (nextAnim == 2 || nextAnim == 1 || nextAnim == 3) {
+                                            var12 += 128;
+                                        }
+
+                                        int var13 = npc.waypointsY[var11];
+                                        if (nextAnim == 6 || nextAnim == 5 || nextAnim == 7) {
+                                            var12 -= 128;
+                                        }
+
+                                        if (nextAnim == 4 || nextAnim == 3 || nextAnim == 5) {
+                                            var13 += 128;
+                                        }
+
+                                        if (nextAnim == 0 || nextAnim == 1 || nextAnim == 7) {
+                                            var13 -= 128;
+                                        }
+
+                                        npc.waypointCurrent = var11 = (var11 + 1) % 10;
+                                        npc.animationNext = nextAnim;
+                                        npc.waypointsX[var11] = var12;
+                                        npc.waypointsY[var11] = var13;
                                     }
-                                }  else  {
-                                    animation = packet.readBitmask(3); // animation
+                                }
+
+                                npcs[npcCount++] = npc;
+                            }
+
+
+                            while (packet.tellBitmask() + 34 < packet.data.length * 8) {
+                                int npcServerIndex = packet.readBitmask(12);
+                                int npcXCoordinate = packet.readBitmask(5);
+                                int npcYCoordinate = packet.readBitmask(5);
+                                int npcAnimation = packet.readBitmask(4);
+                                int npcId = packet.readBitmask(10);
+
+                                if (npcXCoordinate > 15) {
+                                    npcXCoordinate -= 32;
+                                }
+                                if (npcYCoordinate > 15) {
+                                    npcYCoordinate -= 32;
+                                }
+
+                                if (Settings.dumpNpcLocs) {
+                                    m_npcLocCSV.put(m_npcLocCSV.size(), String.format("%s,%d,%f,%d,%d,%d,%d\n",
+                                            fname,
+                                            packet.timestamp,
+                                            (packet.timestamp / 50.0) + editor.getReplayMetadata().dateModified,
+                                            npcId,
+                                            npcServerIndex,
+                                            npcXCoordinate + playerX + planeFloor * floorXOffset,
+                                            npcYCoordinate + playerY
+                                    ));
+                                }
+                                int x = npcXCoordinate + playerX + planeFloor * floorXOffset;
+                                int y = npcYCoordinate + playerY;
+
+                                createNpc(npcServerIndex, npcId, x, y, npcAnimation);
+                            }
+
+                            packet.endBitmask();
+                        }
+
+                        break;
+                    case PacketBuilder.OPCODE_UPDATE_NPC:
+                        if (Settings.dumpMessages) {
+                            int updateNpcCount = packet.readUnsignedShort();
+                            for (int i = 0; i < updateNpcCount; i++) {
+                                int npcServerIndex = packet.readUnsignedShort();
+                                int updateType = packet.readByte();
+                                if (updateType == 1) { // npc chat
+                                    int pidTalkingTo = packet.readUnsignedShort();
+                                    String updateNPCMessage = packet.readRSCString();
+                                    m_messageSQL.put(m_messageSQL.size(),
+                                            "INSERT INTO `rscMessages`.`UPDATE_NPCS_TYPE_1` (`replayIndex`, `timestamp`, `npcId`, `pidTalkingTo`, `message`) VALUES " +
+                                                    String.format("('%d', '%d', '%d', '%d', \"%s\");\n",
+                                                            Scraper.replaysProcessedCount,
+                                                            packet.timestamp,
+                                                            npcsServer[npcServerIndex].npcId,
+                                                            pidTalkingTo,
+                                                            updateNPCMessage.replaceAll("\"", "\\\"")
+                                                    )
+                                    );
                                 }
                             }
                         }
-                        while (packet.tellBitmask() + 34 < packet.data.length * 8) {
-                            long npcServerIndex = packet.readBitmask(12);
-                            int npcXCoordinate = packet.readBitmask(5);
-                            int npcYCoordinate = packet.readBitmask(5);
-                            int npcAnimation = packet.readBitmask(4);
-                            long npcId = packet.readBitmask(10);
-                            m_npcLocCSV.put(m_npcLocCSV.size(), String.format("%s,%d,%f,%d,%d,%d,%d\n",
-                                    fname,
-                                    packet.timestamp,
-                                    (packet.timestamp / 50.0) + editor.getReplayMetadata().dateModified,
-                                    npcId,
-                                    npcServerIndex,
-                                    npcXCoordinate + playerX + planeFloor * floorXOffset,
-                                    npcYCoordinate + playerY
-                            ));
-                        }
-                        packet.endBitmask();
                         break;
                     case PacketBuilder.OPCODE_CLOSE_CONNECTION_NOTIFY:
                         if (appendingToReplay) {
@@ -543,6 +762,18 @@ public class Scraper {
                     case 132: // Add ignore
                         if (Settings.sanitizeFriendsIgnore)
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
+
+                    case 116: // Choose dialogue option
+                        if (Settings.dumpMessages) {
+                            m_messageSQL.put(m_messageSQL.size(),
+                                    String.format("INSERT INTO `rscMessages`.`CLIENT_CHOOSE_DIALOGUE_OPTION` (`replayIndex`, `timestamp`, `choice`) VALUES ('%d', '%d', '%d');\n",
+                                            Scraper.replaysProcessedCount,
+                                            packet.timestamp,
+                                            packet.readUnsignedByte() + 1
+                                    )
+                            );
+                        }
                         break;
                     default:
                         break;
@@ -894,8 +1125,15 @@ public class Scraper {
         } else {
             sanitizeDirectory(Settings.sanitizePath);
         }
+        if (Settings.dumpMessages) {
+            Logger.Info(String.format("Highest option was: %d", highestOption));
+            m_messageSQL.put(m_messageSQL.size(), String.format("/* ----- Highest option was: %d ----- */", highestOption));
+            dumpMessages(Settings.scraperOutputPath + "allMessages.sql");
+        }
 
-        dumpNPCLocs(Settings.scraperOutputPath + "npcLocs.csv");
+        if (Settings.dumpNpcLocs) {
+            dumpNPCLocs(Settings.scraperOutputPath + "npcLocs.csv");
+        }
 
         Logger.Info(String.format("@|green %d out of %d replays were able to have an IP address determined.|@", ipFoundCount, replaysProcessedCount));
         Logger.Info("Saved to " + Settings.sanitizeOutputPath);

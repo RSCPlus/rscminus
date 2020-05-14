@@ -47,6 +47,9 @@ public class Settings {
   // Scraper Settings
   public static boolean dumpObjects = false;
   public static boolean dumpWallObjects = false;
+  public static boolean dumpMessages = false;
+  public static boolean dumpNpcLocs = false;
+  public static boolean needNpcCreation = true;
   public static String scraperOutputPath = "dump";
 
 
