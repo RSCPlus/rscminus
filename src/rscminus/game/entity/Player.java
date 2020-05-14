@@ -341,64 +341,64 @@ public class Player extends Entity {
         playSound("click");
     }
 
-    public void interactWallObject(WallObject obj, int option) {
+    public void interactBoundary(Boundary boundary, int option) {
         if (option == 0)
-            interactWallObjectOption1(obj);
+            interactBoundaryOption1(boundary);
         else if (option == 1)
-            interactWallObjectOption2(obj);
+            interactBoundaryOption2(boundary);
 
         // Clear action slot and walking queue
         m_actionSlot.clear();
         m_walkingQueue.clear();
     }
 
-    public void interactWallObjectOption1(WallObject obj) {
-        int id = obj.getID();
+    public void interactBoundaryOption1(Boundary boundary) {
+        int id = boundary.getID();
         switch (id) {
         case 2: // Door
-            obj.setID(1);
+            boundary.setID(1);
             playSound("opendoor");
             break;
         case 8: // Door
-            obj.setID(9);
+            boundary.setID(9);
             playSound("opendoor");
             break;
         default:
-            System.out.println("Unhandled WallObject interaction, id: " + id + ", option: 1");
+            System.out.println("Unhandled Boundary interaction, id: " + id + ", option: 1");
             break;
         }
     }
 
-    public void interactWallObjectOption2(WallObject obj) {
-        int id = obj.getID();
+    public void interactBoundaryOption2(Boundary boundary) {
+        int id = boundary.getID();
         switch (id) {
         case 1: // Door
-            obj.setID(2);
+            boundary.setID(2);
             playSound("closedoor");
             break;
         case 9: // Door
-            obj.setID(8);
+            boundary.setID(8);
             playSound("closedoor");
             break;
         default:
-            System.out.println("Unhandled WallObject interaction, id: " + id + ", option: 2");
+            System.out.println("Unhandled Boundary interaction, id: " + id + ", option: 2");
             break;
         }
     }
 
-    public void interactObject(GameObject obj, int option) {
+    public void interactScenery(Scenery scenery, int option) {
         if (option == 0)
-            interactObjectOption1(obj);
+            interactSceneryOption1(scenery);
         else if (option == 1)
-            interactObjectOption2(obj);
+            interactSceneryOption2(scenery);
 
         // Clear action slot and walking queue
         m_actionSlot.clear();
         m_walkingQueue.clear();
     }
 
-    public void interactObjectOption1(GameObject obj) {
-        int id = obj.getID();
+    public void interactSceneryOption1(Scenery scenery) {
+        int id = scenery.getID();
         switch (id) {
         case 5: // Ladder
             addFloor(1);
@@ -407,28 +407,28 @@ public class Player extends Entity {
             addFloor(-1);
             break;
         case 60: // gate
-            obj.setID(59);
+            scenery.setID(59);
             break;
         case 64: // doors
-            obj.setID(63);
+            scenery.setID(63);
             break;
         default:
-            System.out.println("Unhandled GameObject interaction, id: " + id + ", direction: " + obj.getDirection() + ", option: 1");
+            System.out.println("Unhandled Scenery interaction, id: " + id + ", direction: " + scenery.getDirection() + ", option: 1");
             break;
         }
     }
 
-    public void interactObjectOption2(GameObject obj) {
-        int id = obj.getID();
+    public void interactSceneryOption2(Scenery scenery) {
+        int id = scenery.getID();
         switch (id) {
         case 59: // gate
-            obj.setID(60);
+            scenery.setID(60);
             break;
         case 63: // doors
-            obj.setID(64);
+            scenery.setID(64);
             break;
         default:
-            System.out.println("Unhandled GameObject interaction, id: " + id + ", direction: " + obj.getDirection() + ", option: 2");
+            System.out.println("Unhandled Scenery interaction, id: " + id + ", direction: " + scenery.getDirection() + ", option: 2");
             break;
         }
     }
@@ -483,7 +483,7 @@ public class Player extends Entity {
             int y = m_actionSlot.getInteractY();
             int direction = m_actionSlot.getInteractDirection();
             int option = m_actionSlot.getInteractOption();
-            m_worldManager.interactWallObject(this, x, y, direction, option);
+            m_worldManager.interactBoundary(this, x, y, direction, option);
             break;
         }
         case ActionSlot.ACTION_INTERACT_OBJECT:
@@ -491,7 +491,7 @@ public class Player extends Entity {
             int x = m_actionSlot.getInteractX();
             int y = m_actionSlot.getInteractY();
             int option = m_actionSlot.getInteractOption();
-            m_worldManager.interactObject(this, x, y, option);
+            m_worldManager.interactScenery(this, x, y, option);
             break;
         }
         case ActionSlot.ACTION_WALK:

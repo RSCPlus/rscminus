@@ -109,40 +109,40 @@ public class ViewRegion {
         PacketBuilder.endPlayerUpdate(player.getNetworkStream());
 
         if (m_update) {
-            PacketBuilder.startObjectUpdate(player.getNetworkStream(), player.getISAACCipher());
+            PacketBuilder.startSceneryUpdate(player.getNetworkStream(), player.getISAACCipher());
             for (int x = 0; x < VIEW_DISTANCE; x++) {
                 for (int y = 0; y < VIEW_DISTANCE; y++) {
                     if (m_viewArea[x][y] != null)
-                        m_viewArea[x][y].writeObjects(player);
+                        m_viewArea[x][y].writeScenery(player);
                 }
             }
-            PacketBuilder.endObjectUpdate(player.getNetworkStream());
-            PacketBuilder.startWallObjectUpdate(player.getNetworkStream(), player.getISAACCipher());
+            PacketBuilder.endSceneryUpdate(player.getNetworkStream());
+            PacketBuilder.startBoundaryUpdate(player.getNetworkStream(), player.getISAACCipher());
             for (int x = 0; x < VIEW_DISTANCE; x++) {
                 for (int y = 0; y < VIEW_DISTANCE; y++) {
                     if (m_viewArea[x][y] != null)
-                        m_viewArea[x][y].writeWallObjects(player);
+                        m_viewArea[x][y].writeBoundaries(player);
                 }
             }
-            PacketBuilder.endWallObjectUpdate(player.getNetworkStream());
+            PacketBuilder.endBoundaryUpdate(player.getNetworkStream());
             m_update = false;
         } else {
-            PacketBuilder.startObjectUpdate(player.getNetworkStream(), player.getISAACCipher());
+            PacketBuilder.startSceneryUpdate(player.getNetworkStream(), player.getISAACCipher());
             for (int x = 0; x < VIEW_DISTANCE; x++) {
                 for (int y = 0; y < VIEW_DISTANCE; y++) {
                     if (m_viewArea[x][y] != null)
-                        m_viewArea[x][y].updateObjects(player);
+                        m_viewArea[x][y].updateScenery(player);
                 }
             }
-            PacketBuilder.endObjectUpdate(player.getNetworkStream());
-            PacketBuilder.startWallObjectUpdate(player.getNetworkStream(), player.getISAACCipher());
+            PacketBuilder.endSceneryUpdate(player.getNetworkStream());
+            PacketBuilder.startBoundaryUpdate(player.getNetworkStream(), player.getISAACCipher());
             for (int x = 0; x < VIEW_DISTANCE; x++) {
                 for (int y = 0; y < VIEW_DISTANCE; y++) {
                     if (m_viewArea[x][y] != null)
-                        m_viewArea[x][y].updateWallObjects(player);
+                        m_viewArea[x][y].updateBoundaries(player);
                 }
             }
-            PacketBuilder.endWallObjectUpdate(player.getNetworkStream());
+            PacketBuilder.endBoundaryUpdate(player.getNetworkStream());
         }
     }
 }

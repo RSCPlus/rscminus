@@ -19,7 +19,6 @@
 
 package rscminus.scraper;
 
-import rscminus.common.FileUtil;
 import rscminus.common.Logger;
 import rscminus.common.Settings;
 
@@ -238,24 +237,24 @@ public class StripperWindow {
 
     JPanel scrapePanelCheckboxesPanel = new JPanel();
     scrapePanelCheckboxesPanel.setLayout(new BoxLayout(scrapePanelCheckboxesPanel,BoxLayout.Y_AXIS));
-    JCheckBox dumpObjectsCheckbox =  addCheckbox("Dump Objects",scrapePanelCheckboxesPanel);
-    dumpObjectsCheckbox.setSelected(Settings.dumpObjects);
-    dumpObjectsCheckbox.addActionListener(
+    JCheckBox dumpSceneryCheckbox =  addCheckbox("Dump Scenery",scrapePanelCheckboxesPanel);
+    dumpSceneryCheckbox.setSelected(Settings.dumpScenery);
+    dumpSceneryCheckbox.addActionListener(
             new ActionListener() {
               @Override
               public void actionPerformed(ActionEvent e) {
-                Settings.dumpObjects = !Settings.dumpObjects;
+                Settings.dumpScenery = !Settings.dumpScenery;
               }
             }
     );
 
-    JCheckBox dumpWallObjectsCheckbox =  addCheckbox("Dump Wallobjects",scrapePanelCheckboxesPanel);
-    dumpWallObjectsCheckbox.setSelected(Settings.dumpWallObjects);
-    dumpWallObjectsCheckbox.addActionListener(
+    JCheckBox dumpBoundariesCheckbox =  addCheckbox("Dump Boundaries",scrapePanelCheckboxesPanel);
+    dumpBoundariesCheckbox.setSelected(Settings.dumpBoundaries);
+    dumpBoundariesCheckbox.addActionListener(
             new ActionListener() {
               @Override
               public void actionPerformed(ActionEvent e) {
-                Settings.dumpWallObjects = !Settings.dumpWallObjects;
+                Settings.dumpBoundaries = !Settings.dumpBoundaries;
               }
             }
     );
@@ -371,7 +370,7 @@ public class StripperWindow {
       replayDirectoryTextField.setText("Processing!");
       if (!Scraper.scraping) {
         Logger.Info("@|green,intensity_bold Scraping " + Settings.sanitizePath+"|@");
-        Scraper.scrape();
+        Scraper.strip();
         replayDirectoryTextField.setText("Finished!");
       } else {
         Logger.Warn("@|red Already scraping, please wait.|@");

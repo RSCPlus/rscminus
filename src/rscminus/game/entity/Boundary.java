@@ -23,7 +23,7 @@ import rscminus.common.JGameData;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewArea;
 
-public class WallObject extends Entity {
+public class Boundary extends Entity {
     private int m_x;
     private int m_y;
     private int m_id;
@@ -31,7 +31,7 @@ public class WallObject extends Entity {
     private boolean m_update;
     private ViewArea m_viewArea;
 
-    public WallObject(ViewArea view, int x, int y, int id, int direction) {
+    public Boundary(ViewArea view, int x, int y, int id, int direction) {
         m_x = x;
         m_y = y;
         m_id = id;
@@ -68,7 +68,7 @@ public class WallObject extends Entity {
     }
 
     public int getCollisionMask() {
-        if (JGameData.wallObjectPassable[getID() - 1])
+        if (JGameData.boundaryPassable[getID() - 1])
             return Game.COLLISION_NONE;
 
         return getExpectedCollisionMask();
