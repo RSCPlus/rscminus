@@ -43,12 +43,12 @@ public class JGameData {
     public static int animationCount;
     public static String animationName[];
     public static int animationIndex[];
-    public static int objectCount;
-    public static int objectWidth[];
-    public static int objectHeight[];
-    public static int wallObjectCount;
-    public static boolean wallObjectAdjacent[];
-    public static boolean wallObjectPassable[];
+    public static int sceneryCount;
+    public static int sceneryWidth[];
+    public static int sceneryHeight[];
+    public static int boundaryCount;
+    public static boolean boundaryAdjacent[];
+    public static boolean boundaryPassable[];
     public static int tileCount;
     public static int tileDecoration[];
     public static int tileType[];
@@ -194,61 +194,61 @@ public class JGameData {
         for (int i = 0; i < animationCount; i++)
             animationIndex[i] = integer.readUnsignedByte(); //animation number
 
-        objectCount = integer.readUnsignedShort();
-        objectWidth = new int[objectCount];
-        objectHeight = new int[objectCount];
-        System.out.println("Object Names:");
-        for (int i = 0; i < objectCount; i++) {
-            String objectName = string.readString(); // Name
-            System.out.print(objectName);
+        sceneryCount = integer.readUnsignedShort();
+        sceneryWidth = new int[sceneryCount];
+        sceneryHeight = new int[sceneryCount];
+        Logger.Info("Scenery Names:");
+        for (int i = 0; i < sceneryCount; i++) {
+            String sceneryName = string.readString(); // Name
+            System.out.print(sceneryName);
             System.out.print(",");
         }
         System.out.println();
 
-        for (int i = 0; i < objectCount; i++)
+        for (int i = 0; i < sceneryCount; i++)
             string.readString(); // Examine
-        for (int i = 0; i < objectCount; i++)
+        for (int i = 0; i < sceneryCount; i++)
             string.readString(); // Command 1
-        for (int i = 0; i < objectCount; i++)
+        for (int i = 0; i < sceneryCount; i++)
             string.readString(); // Command 2
-        for (int i = 0; i < objectCount; i++)
+        for (int i = 0; i < sceneryCount; i++)
             string.readString(); // Unknown
-        for (int i = 0; i < objectCount; i++)
-            objectWidth[i] = integer.readUnsignedByte();
-        for (int i = 0; i < objectCount; i++)
-            objectHeight[i] = integer.readUnsignedByte();
-        for (int i = 0; i < objectCount; i++)
+        for (int i = 0; i < sceneryCount; i++)
+            sceneryWidth[i] = integer.readUnsignedByte();
+        for (int i = 0; i < sceneryCount; i++)
+            sceneryHeight[i] = integer.readUnsignedByte();
+        for (int i = 0; i < sceneryCount; i++)
             integer.skip(1); // Type
-        for (int i = 0; i < objectCount; i++)
+        for (int i = 0; i < sceneryCount; i++)
             integer.skip(1); // Elevation
 
-        wallObjectCount = integer.readUnsignedShort();
-        wallObjectAdjacent = new boolean[wallObjectCount];
-        wallObjectPassable = new boolean[wallObjectCount];
-        System.out.println("Wall Object Names:");
-        for (int i = 0; i < wallObjectCount; i++) {
-            String wallObjectName = string.readString(); // Name
-            System.out.print(wallObjectName);
+        boundaryCount = integer.readUnsignedShort();
+        boundaryAdjacent = new boolean[boundaryCount];
+        boundaryPassable = new boolean[boundaryCount];
+        System.out.println("Boundary Names:");
+        for (int i = 0; i < boundaryCount; i++) {
+            String boundaryName = string.readString(); // Name
+            System.out.print(boundaryName);
             System.out.print(",");
         }
         System.out.println();
 
-        for (int i = 0; i < wallObjectCount; i++)
+        for (int i = 0; i < boundaryCount; i++)
             string.readString(); // Examine
-        for (int i = 0; i < wallObjectCount; i++)
+        for (int i = 0; i < boundaryCount; i++)
             string.readString(); // Command 1
-        for (int i = 0; i < wallObjectCount; i++)
+        for (int i = 0; i < boundaryCount; i++)
             string.readString(); // Command 2
-        for (int i = 0; i < wallObjectCount; i++)
+        for (int i = 0; i < boundaryCount; i++)
             integer.skip(2); // Unknown
-        for (int i = 0; i < wallObjectCount; i++)
+        for (int i = 0; i < boundaryCount; i++)
             integer.skip(4); // Texture 1
-        for (int i = 0; i < wallObjectCount; i++)
+        for (int i = 0; i < boundaryCount; i++)
             integer.skip(4); // Texture 2
-        for (int i = 0; i < wallObjectCount; i++)
-            wallObjectAdjacent[i] = (integer.readUnsignedByte() != 0); // Adjacent
-        for (int i = 0; i < wallObjectCount; i++)
-            wallObjectPassable[i] = (integer.readUnsignedByte() == 0); // Collidable
+        for (int i = 0; i < boundaryCount; i++)
+            boundaryAdjacent[i] = (integer.readUnsignedByte() != 0); // Adjacent
+        for (int i = 0; i < boundaryCount; i++)
+            boundaryPassable[i] = (integer.readUnsignedByte() == 0); // Collidable
 
         int roofCount = integer.readUnsignedShort();
         for (int i = 0; i < roofCount; i++)
@@ -335,11 +335,11 @@ public class JGameData {
 
         for (int i = 0; i < Game.REGION_SIZE; i++) {
             int id = map.readUnsignedByte();
-            regionCollisionMask[x][y][floor][i] |= (id > 0 && JGameData.wallObjectPassable[id - 1] && JGameData.wallObjectAdjacent[id - 1]) ? Game.COLLISION_EASTWEST : Game.COLLISION_NONE;
+            regionCollisionMask[x][y][floor][i] |= (id > 0 && JGameData.boundaryPassable[id - 1] && JGameData.boundaryAdjacent[id - 1]) ? Game.COLLISION_EASTWEST : Game.COLLISION_NONE;
         }
         for (int i = 0; i < Game.REGION_SIZE; i++) {
             int id = map.readUnsignedByte();
-            regionCollisionMask[x][y][floor][i] |= (id > 0 && JGameData.wallObjectPassable[id - 1] && JGameData.wallObjectAdjacent[id - 1]) ? Game.COLLISION_NORTHSOUTH : Game.COLLISION_NONE;
+            regionCollisionMask[x][y][floor][i] |= (id > 0 && JGameData.boundaryPassable[id - 1] && JGameData.boundaryAdjacent[id - 1]) ? Game.COLLISION_NORTHSOUTH : Game.COLLISION_NONE;
         }
 
         int data[] = new int[Game.REGION_SIZE];
@@ -351,8 +351,8 @@ public class JGameData {
                 data[i] = 12000 + val;
 
             int id = data[i];
-            regionCollisionMask[x][y][floor][i] |= (id > 0 && id < 12000 && JGameData.wallObjectPassable[id - 1] && JGameData.wallObjectAdjacent[id - 1]) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
-            regionCollisionMask[x][y][floor][i] |= (id >= 12000 && JGameData.wallObjectPassable[id - 12001] && JGameData.wallObjectAdjacent[id - 12001]) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
+            regionCollisionMask[x][y][floor][i] |= (id > 0 && id < 12000 && JGameData.boundaryPassable[id - 1] && JGameData.boundaryAdjacent[id - 1]) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
+            regionCollisionMask[x][y][floor][i] |= (id >= 12000 && JGameData.boundaryPassable[id - 12001] && JGameData.boundaryAdjacent[id - 12001]) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
         }
 
         // Unknown

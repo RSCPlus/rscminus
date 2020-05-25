@@ -37,7 +37,7 @@ public class Game {
     public static final int COLLISION_NORTHSOUTH = 0x02;
     public static final int COLLISION_TILE = 0x04;
 
-    // Direction
+    // Scenery Direction
     public static final int DIRECTION_NORTH = 0;
     public static final int DIRECTION_NORTHWEST = 1;
     public static final int DIRECTION_WEST = 2;
@@ -47,7 +47,7 @@ public class Game {
     public static final int DIRECTION_EAST = 6;
     public static final int DIRECTION_NORTHEAST = 7;
 
-    // Wall object direction
+    // Boundary direction
     public static final int DIRECTION_WALLOBJECT_NORTHSOUTH = 0;
     public static final int DIRECTION_WALLOBJECT_EASTWEST = 1;
 

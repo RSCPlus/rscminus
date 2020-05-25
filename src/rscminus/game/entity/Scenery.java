@@ -21,14 +21,14 @@ package rscminus.game.entity;
 
 import rscminus.game.world.ViewArea;
 
-public class GameObject extends Entity {
+public class Scenery extends Entity {
     private int m_x;
     private int m_y;
     private int m_id;
     private int m_direction;
     private ViewArea m_viewArea;
 
-    public GameObject(ViewArea view, int x, int y, int id, int direction) {
+    public Scenery(ViewArea view, int x, int y, int id, int direction) {
         m_x = x;
         m_y = y;
         m_id = id;

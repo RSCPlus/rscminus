@@ -21,9 +21,9 @@ package rscminus.game;
 
 import rscminus.common.JGameData;
 import rscminus.game.constants.Game;
-import rscminus.game.entity.GameObject;
+import rscminus.game.entity.Boundary;
+import rscminus.game.entity.Scenery;
 import rscminus.game.entity.Player;
-import rscminus.game.entity.WallObject;
 import rscminus.game.world.ViewArea;
 
 import java.io.BufferedInputStream;
@@ -61,14 +61,14 @@ public class WorldManager {
         return m_viewArea[x >> 3][y >> 3];
     }
 
-    public void addObject(int x, int y, int id) {
+    public void addScenery(int x, int y, int id) {
         ViewArea view = getViewAreaCoordinate(x, y);
-        view.add(new GameObject(view, x, y, id, getTileDirection(x, y)));
+        view.add(new Scenery(view, x, y, id, getTileDirection(x, y)));
     }
 
-    public void addWallObject(int x, int y, int id, int direction) {
+    public void addBoundary(int x, int y, int id, int direction) {
         ViewArea view = getViewAreaCoordinate(x, y);
-        view.add(new WallObject(view, x, y, id, direction));
+        view.add(new Boundary(view, x, y, id, direction));
     }
 
     public void removePlayer(Player player) {
@@ -76,22 +76,22 @@ public class WorldManager {
         view.remove(player);
     }
 
-    public void interactWallObject(Player player, int x, int y, int direction, int option) {
+    public void interactBoundary(Player player, int x, int y, int direction, int option) {
         int directionX = x - player.getX();
         int directionY = y - player.getY();
         ViewArea view = getViewAreaCoordinate(x, y);
-        WallObject wallObj = view.getWallObject(x, y, direction);
-        if (wallObj != null && wallObj.getInteractable(directionX, directionY))
-            player.interactWallObject(wallObj, option);
+        Boundary boundary = view.getBoundary(x, y, direction);
+        if (boundary != null && boundary.getInteractable(directionX, directionY))
+            player.interactBoundary(boundary, option);
     }
 
-    public void interactObject(Player player, int x, int y, int option) {
+    public void interactScenery(Player player, int x, int y, int option) {
         int directionX = x - player.getX();
         int directionY = y - player.getY();
         ViewArea view = getViewAreaCoordinate(x, y);
-        GameObject obj = view.getObject(x, y);
-        if (obj != null)
-            player.interactObject(obj, option);
+        Scenery scenery = view.getScenery(x, y);
+        if (scenery != null)
+            player.interactScenery(scenery, option);
     }
 
     public int getCollisionMask(int x, int y) {
@@ -105,17 +105,17 @@ public class WorldManager {
         worldY = worldY - (regionY * 48);
         int index = (worldX * Game.REGION_HEIGHT) + worldY;
         int regionCollisionMask = JGameData.regionCollisionMask[regionX][regionY][floor][index];
-        int objectCollisionMask = Game.COLLISION_NONE;
+        int boundaryCollisionMask = Game.COLLISION_NONE;
 
         ViewArea view = getViewAreaCoordinate(x, y);
-        WallObject wallobj = view.getWallObject(x, y);
+        Boundary boundary = view.getBoundary(x, y);
 
-        if (wallobj != null) {
-            objectCollisionMask = wallobj.getCollisionMask();
-            regionCollisionMask &= ~(wallobj.getExpectedCollisionMask());
+        if (boundary != null) {
+            boundaryCollisionMask = boundary.getCollisionMask();
+            regionCollisionMask &= ~(boundary.getExpectedCollisionMask());
         }
 
-        return regionCollisionMask | objectCollisionMask;
+        return regionCollisionMask | boundaryCollisionMask;
     }
 
     public int getTileDirection(int x, int y) {
@@ -193,17 +193,17 @@ public class WorldManager {
 
     public boolean init() {
         try {
-            DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(new File("objects.bin"))));
+            DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(new File("scenery.bin"))));
             int count = in.readInt();
             System.out.println("count: " + count);
             for (int i = 0; i < count; i++) {
                 int x = in.readUnsignedShort();
                 int y = in.readUnsignedShort();
                 int id = in.readUnsignedShort();
-                addObject(x, y, id);
+                addScenery(x, y, id);
             }
             in.close();
-            in = new DataInputStream(new BufferedInputStream(new FileInputStream(new File("wallObjects.bin"))));
+            in = new DataInputStream(new BufferedInputStream(new FileInputStream(new File("boundaries.bin"))));
             count = in.readInt();
             System.out.println("count: " + count);
             for (int i = 0; i < count; i++) {
@@ -211,7 +211,7 @@ public class WorldManager {
                 int y = in.readUnsignedShort();
                 int id = in.readUnsignedShort();
                 int direction = in.readUnsignedByte();
-                addWallObject(x, y, id, direction);
+                addBoundary(x, y, id, direction);
             }
             in.close();
         } catch (Exception e) {

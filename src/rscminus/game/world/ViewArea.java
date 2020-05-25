@@ -20,40 +20,40 @@
 package rscminus.game.world;
 
 import rscminus.game.PacketBuilder;
-import rscminus.game.entity.GameObject;
+import rscminus.game.entity.Scenery;
 import rscminus.game.entity.Player;
-import rscminus.game.entity.WallObject;
+import rscminus.game.entity.Boundary;
 
 import java.util.HashSet;
 import java.util.LinkedList;
 
 public class ViewArea {
     private LinkedList<Player> m_players;
-    private LinkedList<GameObject> m_objects;
-    private LinkedList<WallObject> m_wallObjects;
+    private LinkedList<Scenery> m_scenery;
+    private LinkedList<Boundary> m_boundaries;
     private HashSet<Player> m_playerUpdates;
-    private HashSet<GameObject> m_objectUpdates;
-    private HashSet<WallObject> m_wallObjectUpdates;
+    private HashSet<Scenery> m_sceneryUpdates;
+    private HashSet<Boundary> m_boundaryUpdates;
 
     public ViewArea() {
         m_players = new LinkedList<Player>();
-        m_objects = new LinkedList<GameObject>();
-        m_wallObjects = new LinkedList<WallObject>();
+        m_scenery = new LinkedList<Scenery>();
+        m_boundaries = new LinkedList<Boundary>();
         m_playerUpdates = new HashSet<Player>();
-        m_objectUpdates = new HashSet<GameObject>();
-        m_wallObjectUpdates = new HashSet<WallObject>();
+        m_sceneryUpdates = new HashSet<Scenery>();
+        m_boundaryUpdates = new HashSet<Boundary>();
     }
 
     public LinkedList<Player> getPlayers() {
         return m_players;
     }
 
-    public void add(GameObject gameObject) {
-        m_objects.add(gameObject);
+    public void add(Scenery scenery) {
+        m_scenery.add(scenery);
     }
 
-    public void add(WallObject wallObject) {
-        m_wallObjects.add(wallObject);
+    public void add(Boundary boundary) {
+        m_boundaries.add(boundary);
     }
 
     public void add(Player player) {
@@ -64,58 +64,58 @@ public class ViewArea {
         m_players.remove(player);
     }
 
-    public void update(WallObject wallObject) {
-        m_wallObjectUpdates.add(wallObject);
+    public void update(Boundary boundary) {
+        m_boundaryUpdates.add(boundary);
     }
 
-    public void update(GameObject obj) {
-        m_objectUpdates.add(obj);
+    public void update(Scenery scenery) {
+        m_sceneryUpdates.add(scenery);
     }
 
     public void clearUpdates() {
         m_playerUpdates.clear();
-        m_objectUpdates.clear();
-        m_wallObjectUpdates.clear();
+        m_sceneryUpdates.clear();
+        m_boundaryUpdates.clear();
     }
 
-    public void writeObjects(Player player) {
-        for (GameObject obj : m_objects)
-            PacketBuilder.addObjectUpdate(player, obj, player.getNetworkStream(), player.getISAACCipher());
+    public void writeScenery(Player player) {
+        for (Scenery scenery : m_scenery)
+            PacketBuilder.addSceneryUpdate(player, scenery, player.getNetworkStream(), player.getISAACCipher());
     }
 
-    public void writeWallObjects(Player player) {
-        for (WallObject wallObj : m_wallObjects)
-            PacketBuilder.addWallObjectUpdate(player, wallObj, player.getNetworkStream(), player.getISAACCipher());
+    public void writeBoundaries(Player player) {
+        for (Boundary boundary : m_boundaries)
+            PacketBuilder.addBoundaryUpdate(player, boundary, player.getNetworkStream(), player.getISAACCipher());
     }
 
-    public void updateObjects(Player player) {
-        for (GameObject obj : m_objectUpdates)
-            PacketBuilder.addObjectUpdate(player, obj, player.getNetworkStream(), player.getISAACCipher());
+    public void updateScenery(Player player) {
+        for (Scenery scenery : m_sceneryUpdates)
+            PacketBuilder.addSceneryUpdate(player, scenery, player.getNetworkStream(), player.getISAACCipher());
     }
 
-    public void updateWallObjects(Player player) {
-        for (WallObject wallObj : m_wallObjectUpdates)
-            PacketBuilder.addWallObjectUpdate(player, wallObj, player.getNetworkStream(), player.getISAACCipher());
+    public void updateBoundaries(Player player) {
+        for (Boundary boundary : m_boundaryUpdates)
+            PacketBuilder.addBoundaryUpdate(player, boundary, player.getNetworkStream(), player.getISAACCipher());
     }
 
-    public WallObject getWallObject(int x, int y) {
-        for (WallObject wallObj : m_wallObjects)
-            if (wallObj.getX() == x && wallObj.getY() == y)
-                return wallObj;
+    public Boundary getBoundary(int x, int y) {
+        for (Boundary boundary : m_boundaries)
+            if (boundary.getX() == x && boundary.getY() == y)
+                return boundary;
         return null;
     }
 
-    public WallObject getWallObject(int x, int y, int direction) {
-        for (WallObject wallObj : m_wallObjects)
-            if (wallObj.getX() == x && wallObj.getY() == y && wallObj.getDirection() == direction)
-                return wallObj;
+    public Boundary getBoundary(int x, int y, int direction) {
+        for (Boundary boundary : m_boundaries)
+            if (boundary.getX() == x && boundary.getY() == y && boundary.getDirection() == direction)
+                return boundary;
         return null;
     }
 
-    public GameObject getObject(int x, int y) {
-        for (GameObject obj : m_objects)
-            if (obj.getX() == x && obj.getY() == y)
-                return obj;
+    public Scenery getScenery(int x, int y) {
+        for (Scenery scenery : m_scenery)
+            if (scenery.getX() == x && scenery.getY() == y)
+                return scenery;
         return null;
     }
 }

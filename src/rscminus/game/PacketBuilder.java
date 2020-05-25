@@ -23,23 +23,23 @@ import rscminus.common.ISAACCipher;
 import rscminus.common.JGameData;
 import rscminus.game.constants.Game;
 import rscminus.game.data.SaveInfo;
-import rscminus.game.entity.GameObject;
+import rscminus.game.entity.Scenery;
 import rscminus.game.entity.Player;
-import rscminus.game.entity.WallObject;
+import rscminus.game.entity.Boundary;
 
 public class PacketBuilder {
     public static final int OPCODE_CLOSE_CONNECTION_NOTIFY = 4;
     public static final int OPCODE_QUEST_STATUS = 5;
     public static final int OPCODE_FLOOR_SET = 25;
     public static final int OPCODE_UPDATE_XP = 33;
-    public static final int OPCODE_OBJECT_HANDLER = 48;
+    public static final int OPCODE_SCENERY_HANDLER = 48;
     public static final int OPCODE_PRIVACY_SETTINGS = 51;
     public static final int OPCODE_SET_INVENTORY = 53;
     public static final int OPCODE_SET_APPEARANCE = 59;
     public static final int OPCODE_CREATE_NPC = 79;
     public static final int OPCODE_SEND_PM = 87;
     public static final int OPCODE_SET_INVENTORY_SLOT = 90;
-    public static final int OPCODE_WALLOBJECT_HANDLER = 91;
+    public static final int OPCODE_BOUNDARY_HANDLER = 91;
     public static final int OPCODE_GROUNDITEM_HANDLER = 99;
     public static final int OPCODE_UPDATE_NPC = 104;
     public static final int OPCODE_SET_IGNORE = 109;
@@ -137,38 +137,38 @@ public class PacketBuilder {
         stream.endPacket();
     }
 
-    public static void startObjectUpdate(NetworkStream stream, ISAACCipher isaacCipher) {
+    public static void startSceneryUpdate(NetworkStream stream, ISAACCipher isaacCipher) {
         stream.startPacket();
-        stream.writeOpcode(OPCODE_OBJECT_HANDLER, isaacCipher);
+        stream.writeOpcode(OPCODE_SCENERY_HANDLER, isaacCipher);
     }
 
-    public static void addObjectUpdate(Player player, GameObject obj, NetworkStream stream, ISAACCipher isaacCipher) {
-        int x = obj.getX() - player.getX();
-        int y = obj.getY() - player.getY();
-        stream.writeUnsignedShort(obj.getID());
+    public static void addSceneryUpdate(Player player, Scenery scenery, NetworkStream stream, ISAACCipher isaacCipher) {
+        int x = scenery.getX() - player.getX();
+        int y = scenery.getY() - player.getY();
+        stream.writeUnsignedShort(scenery.getID());
         stream.writeByte((byte)x);
         stream.writeByte((byte)y);
     }
 
-    public static void endObjectUpdate(NetworkStream stream) {
+    public static void endSceneryUpdate(NetworkStream stream) {
         stream.endPacket();
     }
 
-    public static void startWallObjectUpdate(NetworkStream stream, ISAACCipher isaacCipher) {
+    public static void startBoundaryUpdate(NetworkStream stream, ISAACCipher isaacCipher) {
         stream.startPacket();
-        stream.writeOpcode(OPCODE_WALLOBJECT_HANDLER, isaacCipher);
+        stream.writeOpcode(OPCODE_BOUNDARY_HANDLER, isaacCipher);
     }
 
-    public static void addWallObjectUpdate(Player player, WallObject obj, NetworkStream stream, ISAACCipher isaacCipher) {
-        int x = obj.getX() - player.getX();
-        int y = obj.getY() - player.getY();
-        stream.writeUnsignedShort(obj.getID());
+    public static void addBoundaryUpdate(Player player, Boundary boundary, NetworkStream stream, ISAACCipher isaacCipher) {
+        int x = boundary.getX() - player.getX();
+        int y = boundary.getY() - player.getY();
+        stream.writeUnsignedShort(boundary.getID());
         stream.writeByte((byte)x);
         stream.writeByte((byte)y);
-        stream.writeByte((byte)obj.getDirection());
+        stream.writeByte((byte)boundary.getDirection());
     }
 
-    public static void endWallObjectUpdate(NetworkStream stream) {
+    public static void endBoundaryUpdate(NetworkStream stream) {
         stream.endPacket();
     }
 

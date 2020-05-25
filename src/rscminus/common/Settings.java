@@ -23,7 +23,7 @@ import java.net.URL;
 
 public class Settings {
   // rscminus version number
-  public static String versionNumber = "0.1.0";
+  public static String versionNumber = "0.2.0a";
 
   // Logger Settings
   public static int LOG_VERBOSITY = 3;
@@ -45,8 +45,8 @@ public class Settings {
 
 
   // Scraper Settings
-  public static boolean dumpObjects = false;
-  public static boolean dumpWallObjects = false;
+  public static boolean dumpScenery = false;
+  public static boolean dumpBoundaries = false;
   public static boolean dumpMessages = false;
   public static boolean dumpNpcLocs = false;
   public static boolean needNpcCreation = true;

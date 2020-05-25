@@ -20,7 +20,6 @@
 package rscminus.scraper;
 
 import rscminus.common.FileUtil;
-import rscminus.common.Sleep;
 import rscminus.common.Logger;
 import rscminus.common.Settings;
 import rscminus.game.PacketBuilder;
@@ -28,25 +27,25 @@ import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
 import rscminus.scraper.client.Character;
 
-import java.awt.*;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Objects;
 
 import static rscminus.common.Settings.initDir;
 import static rscminus.scraper.ReplayEditor.appendingToReplay;
 
 public class Scraper {
-    private static HashMap<Integer, Integer> m_objects = new HashMap<Integer, Integer>();
-    private static HashMap<Integer, Integer> m_wallObjects = new HashMap<Integer, Integer>();
+    private static HashMap<Integer, Integer> m_sceneryLocs = new HashMap<Integer, Integer>();
+    private static HashMap<Integer, Integer> m_boundaryLocs = new HashMap<Integer, Integer>();
+    private static HashMap<Integer, Integer> sceneryLocs = new HashMap<Integer, Integer>();
+    private static HashMap<Integer, Integer> boundaryLocs = new HashMap<Integer, Integer>();
     private static HashMap<Integer, String> m_npcLocCSV = new HashMap<Integer, String>();
     private static HashMap<Integer, String> m_messageSQL = new HashMap<Integer, String>();
 
 
-    private static final int OBJECT_BLANK = 65536;
+    private static final int SCENERY_BLANK = 65536;
 
     // Settings
     private static int sanitizeVersion = -1;
@@ -110,7 +109,7 @@ public class Scraper {
         return character;
     }
 
-    private static boolean objectIDBlacklisted(int id, int x, int y) {
+    private static boolean sceneryIDBlacklisted(int id, int x, int y) {
         boolean blacklist = false;
         if (id == 1147) // Spellcharge
             blacklist = true;
@@ -138,34 +137,34 @@ public class Scraper {
             blacklist = true;
 
         if (blacklist)
-            System.out.println("GameObject id " + id + " at " + x + ", " + y + " was blacklisted");
+            Logger.Debug("Scenery id " + id + " at " + x + ", " + y + " was blacklisted");
 
         return blacklist;
     }
 
-    private static boolean objectIDRemoveList(int id, int x, int y) {
+    private static boolean sceneryIDRemoveList(int id, int x, int y) {
         boolean remove = false;
 
         if (id == 97) // fire
             remove = true;
 
         if (remove)
-            System.out.println("GameObject id " + id + " at " + x + ", " + y + " was removed");
+            Logger.Debug("Scenery id " + id + " at " + x + ", " + y + " was removed");
 
         return remove;
     }
 
-    private static boolean wallObjectIDBlacklisted(int id, int x, int y) {
+    private static boolean boundaryIDBlacklisted(int id, int x, int y) {
         boolean blacklist = false;
 
         if (blacklist)
-            System.out.println("WallObject id " + id + " at " + x + ", " + y + " was blacklisted");
+            Logger.Debug("Boundary id " + id + " at " + x + ", " + y + " was blacklisted");
 
         return blacklist;
     }
 
-    private static int handleObjectIDConflict(int before, int after) {
-        if (before == OBJECT_BLANK)
+    private static int handleSceneryIDConflict(int before, int after) {
+        if (before == SCENERY_BLANK)
             return after;
 
         if (before == after)
@@ -186,12 +185,12 @@ public class Scraper {
         else if (before == 314)
             return after;
 
-        System.out.println("unhandled GameObject conflict; before: " + before + ", after: " + after);
+        Logger.Warn("unhandled scenery conflict; before: " + before + ", after: " + after);
 
         return before;
     }
 
-    private static int handleObjectIDConvert(int id) {
+    private static int handleSceneryIDConvert(int id) {
         if (id == 63) // doors
             id = 64;
         else if (id == 203) // Coffin
@@ -218,7 +217,7 @@ public class Scraper {
         return id;
     }
 
-    private static int handleWallObjectIDConvert(int value) {
+    private static int handleBoundaryIDConvert(int value) {
         int id = getPackedX(value);
         int direction = getPackedY(value);
 
@@ -230,7 +229,7 @@ public class Scraper {
         return packCoordinate(id, direction);
     }
 
-    private static int handleWallObjectIDConflict(int before, int after) {
+    private static int handleBoundaryIDConflict(int before, int after) {
         if (before == after)
             return before;
 
@@ -248,43 +247,43 @@ public class Scraper {
         else if (afterID == 11)
             return packCoordinate(beforeID, beforeDirection);
 
-        System.out.println("unhandled WallObject conflict; before: " + beforeID + ", after: " + afterID);
+        Logger.Warn("unhandled boundary conflict; before: " + beforeID + ", after: " + afterID);
 
         return before;
     }
 
-    private static void dumpObjects(String fname) {
-        int objectCount = 0;
-        for (HashMap.Entry<Integer, Integer> entry : m_objects.entrySet()) {
-            if (entry.getValue() != OBJECT_BLANK)
-                objectCount++;
+    private static void dumpScenery(String fname) {
+        int sceneryCount = 0;
+        for (HashMap.Entry<Integer, Integer> entry : m_sceneryLocs.entrySet()) {
+            if (entry.getValue() != SCENERY_BLANK)
+                sceneryCount++;
         }
         try {
             DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(fname)));
-            out.writeInt(objectCount);
-            for (HashMap.Entry<Integer, Integer> entry : m_objects.entrySet()) {
+            out.writeInt(sceneryCount);
+            for (HashMap.Entry<Integer, Integer> entry : m_sceneryLocs.entrySet()) {
                 int x = getPackedX(entry.getKey());
                 int y = getPackedY(entry.getKey());
                 int id = entry.getValue();
-                if (id != OBJECT_BLANK) {
+                if (id != SCENERY_BLANK) {
                     out.writeShort(x);
                     out.writeShort(y);
                     out.writeShort(id);
                 }
             }
             out.close();
-            Logger.Info("Dumped " + objectCount + " objects");
+            Logger.Info("Dumped " + sceneryCount + " Scenery locations");
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static void dumpWallObjects(String fname) {
+    private static void dumpBoundaries(String fname) {
         try {
             DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(fname)));
-            int count = m_wallObjects.size();
+            int count = m_boundaryLocs.size();
             out.writeInt(count);
-            for (HashMap.Entry<Integer, Integer> entry : m_wallObjects.entrySet()) {
+            for (HashMap.Entry<Integer, Integer> entry : m_boundaryLocs.entrySet()) {
                 int x = getPackedX(entry.getKey());
                 int y = getPackedY(entry.getKey());
                 int id = getPackedX(entry.getValue());
@@ -295,7 +294,7 @@ public class Scraper {
                 out.writeByte(direction);
             }
             out.close();
-            Logger.Info("Dumped " + count + " wall objects");
+            Logger.Info("Dumped " + count + " Boundary locations");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -303,13 +302,13 @@ public class Scraper {
 
     private static void dumpNPCLocs(String fname) {
         try {
-            Logger.Info("There's  a whopping " +  (m_npcLocCSV.size() - 1) + " NPC locs to dump. Please hold.");
+            Logger.Info("There's  a whopping " +  (m_npcLocCSV.size() - 1) + " NPC locations to dump. Please hold.");
             DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(fname)));
             for (HashMap.Entry<Integer, String> entry : m_npcLocCSV.entrySet()) {
                 out.writeBytes(entry.getValue());
             }
             out.close();
-            Logger.Info("Dumped " + (m_npcLocCSV.size() - 1) + " NPC locs");
+            Logger.Info("Dumped " + (m_npcLocCSV.size() - 1) + " NPC locations");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -356,7 +355,7 @@ public class Scraper {
         return true;
     }
 
-    private static void fillView(int playerX, int playerY, HashMap<Integer, Integer> objects) {
+    private static void fillView(int playerX, int playerY, HashMap<Integer, Integer> scenery) {
         int viewX = (playerX >> 3) << 3;
         int viewY = (playerY >> 3) << 3;
         int size = ViewRegion.VIEW_DISTANCE << 3;
@@ -366,8 +365,8 @@ public class Scraper {
                 int updateX = viewX + (x - index);
                 int updateY = viewY + (y - index);
                 int key = packCoordinate(updateX, updateY);
-                if (!objects.containsKey(key))
-                    objects.put(key, OBJECT_BLANK);
+                if (!scenery.containsKey(key))
+                    scenery.put(key, SCENERY_BLANK);
             }
         }
     }
@@ -409,7 +408,8 @@ public class Scraper {
         int planeX = -1;
         int planeY = -1;
         int planeFloor = -1;
-        int floorXOffset = -1;
+        int floorYOffset = -1;
+        int length = -1;
 
         if (Settings.dumpMessages) {
             m_messageSQL.put(m_messageSQL.size(),
@@ -436,7 +436,7 @@ public class Scraper {
                         planeX = packet.readUnsignedShort();
                         planeY = packet.readUnsignedShort();
                         planeFloor = packet.readUnsignedShort();
-                        floorXOffset = packet.readUnsignedShort();
+                        floorYOffset = packet.readUnsignedShort();
                         break;
                     case PacketBuilder.OPCODE_SEND_MESSAGE:
                         if (Settings.dumpMessages) {
@@ -497,7 +497,9 @@ public class Scraper {
                         playerX = packet.readBitmask(11);
                         playerY = packet.readBitmask(13);
                         packet.endBitmask();
-                        // fillView(playerX, playerY, objects);
+                        if (Settings.dumpScenery) {
+                            fillView(playerX, playerY, sceneryLocs);
+                        }
                         packet.skip(packet.data.length - 3);
                         break;
                     case PacketBuilder.OPCODE_UPDATE_PLAYERS: {
@@ -511,8 +513,7 @@ public class Scraper {
                                 packet.skip(2);
                             } else if (updateType == 1) { // chat
                                 packet.skip(1);
-                                packet.readRSCString();
-
+                                String chatMessage = packet.readRSCString();
                                 // Strip Chat
                                 if (Settings.sanitizePublicChat) {
                                     int trimSize = packet.tell() - startPosition;
@@ -688,11 +689,11 @@ public class Scraper {
                                             (packet.timestamp / 50.0) + editor.getReplayMetadata().dateModified,
                                             npcId,
                                             npcServerIndex,
-                                            npcXCoordinate + playerX + planeFloor * floorXOffset,
+                                            npcXCoordinate + playerX + planeFloor * floorYOffset,
                                             npcYCoordinate + playerY
                                     ));
                                 }
-                                int x = npcXCoordinate + playerX + planeFloor * floorXOffset;
+                                int x = npcXCoordinate + playerX + planeFloor * floorYOffset;
                                 int y = npcYCoordinate + playerY;
 
                                 createNpc(npcServerIndex, npcId, x, y, npcAnimation);
@@ -725,6 +726,83 @@ public class Scraper {
                             }
                         }
                         break;
+                    case PacketBuilder.OPCODE_SCENERY_HANDLER:
+                        if (Settings.dumpScenery) {
+                            length = packet.data.length;
+                            while (length > 0) {
+                                if (packet.readUnsignedByte() == 255) {
+                                    packet.skip(2);
+                                    length -= 3;
+                                } else {
+                                    packet.skip(-1);
+                                    int type = handleSceneryIDConvert(packet.readUnsignedShort());
+                                    int x = playerX + packet.readByte();
+                                    int y = playerY + packet.readByte();
+                                    length -= 4;
+
+                                    if (planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || floorYOffset != Game.WORLD_Y_OFFSET || planeFloor > 3 || planeFloor < 0) {
+                                        Logger.Error("Invalid region or not logged in; Aborting");
+                                        break;
+                                    }
+
+                                    if (!validCoordinates(x, y)) {
+                                        Logger.Error("Invalid coordinates " + x + ", " + y + "; Aborting");
+                                        break;
+                                    } else if (type != 60000 && !sceneryIDBlacklisted(type, x, y)) {
+                                        if (type < 0 || type > 1188) {
+                                            Logger.Error("Scenery id " + type + " at " + x + ", " + y + " is invalid; Aborting");
+                                            break;
+                                        }
+
+                                        int key = packCoordinate(x, y);
+                                        //System.out.println("x: " + x + ", y: " + y);
+                                        if (sceneryLocs.containsKey(key))
+                                            type = handleSceneryIDConflict(sceneryLocs.get(key), type);
+                                        sceneryLocs.put(key, type);
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    case PacketBuilder.OPCODE_BOUNDARY_HANDLER:
+                        if (Settings.dumpBoundaries) {
+                            length = packet.data.length;
+                            while (length > 0) {
+                                if (packet.readUnsignedByte() == 255) {
+                                    packet.skip(2);
+                                    length -= 3;
+                                } else {
+                                    packet.skip(-1);
+                                    int type = packet.readUnsignedShort();
+                                    int x = playerX + packet.readByte();
+                                    int y = playerY + packet.readByte();
+                                    byte direction = packet.readByte();
+                                    length -= 5;
+
+                                    if (planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || floorYOffset != Game.WORLD_Y_OFFSET || planeFloor > 3 || planeFloor < 0) {
+                                        Logger.Error("Invalid region or not logged in; Aborting");
+                                        break;
+                                    }
+
+                                    if (!validCoordinates(x, y)) {
+                                        Logger.Error("Invalid coordinates " + x + ", " + y + "; Aborting");
+                                        break;
+                                    } else if (type != 0xFFFF && !boundaryIDBlacklisted(type, x, y)) {
+                                        if (type < 0 || type > 213) {
+                                            Logger.Error("Boundary id " + type + " at " + x + ", " + y + " is invalid; Aborting");
+                                            break;
+                                        }
+
+                                        int key = packCoordinate(x, y);
+                                        int value = handleBoundaryIDConvert(packCoordinate(type, direction));
+                                        if (boundaryLocs.containsKey(key))
+                                            value = handleBoundaryIDConflict(boundaryLocs.get(key), value);
+                                        boundaryLocs.put(key, value);
+                                    }
+                                }
+                            }
+                        }
+                        break;
                     case PacketBuilder.OPCODE_CLOSE_CONNECTION_NOTIFY:
                         if (appendingToReplay) {
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
@@ -736,6 +814,37 @@ public class Scraper {
             } catch (Exception e) {
                 e.printStackTrace();
                 Logger.Error("Scraper.sanitizeReplays incomingPackets loop");
+            }
+        }
+
+        if (Settings.dumpScenery) {
+            for (HashMap.Entry<Integer, Integer> entry : sceneryLocs.entrySet()) {
+                int key = entry.getKey();
+                int id = entry.getValue();
+                if (m_sceneryLocs.containsKey(key)) {
+                    int oldID = m_sceneryLocs.get(key);
+                    if (oldID == SCENERY_BLANK)
+                        continue;
+                    if (id == SCENERY_BLANK && oldID != SCENERY_BLANK && sceneryIDRemoveList(oldID, getPackedX(key), getPackedY(key))) {
+                        m_sceneryLocs.put(key, id);
+                        continue;
+                    }
+                    if (id != SCENERY_BLANK) {
+                        id = handleSceneryIDConflict(m_sceneryLocs.get(key), id);
+                        m_sceneryLocs.put(key, id);
+                    }
+                } else {
+                    m_sceneryLocs.put(key, id);
+                }
+            }
+        }
+        if (Settings.dumpBoundaries) {
+            for (HashMap.Entry<Integer, Integer> entry : boundaryLocs.entrySet()) {
+                int key = entry.getKey();
+                int value = entry.getValue();
+                if (m_boundaryLocs.containsKey(key))
+                    value = handleBoundaryIDConflict(m_boundaryLocs.get(key), value);
+                m_boundaryLocs.put(key, value);
             }
         }
 
@@ -808,165 +917,6 @@ public class Scraper {
         }
     }
 
-    private static void scrapeReplay(String fname) {
-        Replay replay = new Replay();
-        replay.load(fname);
-
-        System.out.println(fname);
-
-        if (!replay.isValid()) {
-            System.out.println("Failed to load replay; Aborting");
-            return;
-        }
-
-        HashMap<Integer, Integer> objects = new HashMap<Integer, Integer>();
-        HashMap<Integer, Integer> wallObjects = new HashMap<Integer, Integer>();
-        int playerX = -1;
-        int playerY = -1;
-        int planeX = -1;
-        int planeY = -1;
-        int floor = -1;
-        int y_offset = -1;
-        boolean loggedIn = false;
-
-        while (!replay.isEOF()) {
-            if (replay.available() < 2)
-                break;
-            int length = replay.readPacketLength();
-
-            if (length == 0) {
-                loggedIn = false;
-                continue;
-            }
-
-            if (replay.available() < length)
-                break;
-
-            int opcode = replay.readUnsignedByte();
-            length--;
-
-            switch (opcode) {
-                case PacketBuilder.OPCODE_FLOOR_SET:
-                    replay.skip(2);
-                    planeX = replay.readUnsignedShort();
-                    planeY = replay.readUnsignedShort();
-                    floor = replay.readUnsignedShort();
-                    y_offset = replay.readUnsignedShort();
-                    break;
-                case PacketBuilder.OPCODE_CREATE_PLAYERS:
-                    replay.startBitmask();
-                    playerX = replay.readBitmask(11);
-                    playerY = replay.readBitmask(13);
-                    replay.endBitmask();
-                    loggedIn = true;
-                    fillView(playerX, playerY, objects);
-                    replay.skip(length - 3);
-                    break;
-                case PacketBuilder.OPCODE_OBJECT_HANDLER:
-                    while (length > 0) {
-                        if (replay.readUnsignedByte() == 255) {
-                            replay.skip(2);
-                            length -= 3;
-                        } else {
-                            replay.skip(-1);
-                            int type = handleObjectIDConvert(replay.readUnsignedShort());
-                            int x = playerX + replay.readByte();
-                            int y = playerY + replay.readByte();
-                            length -= 4;
-
-                            if (!loggedIn || planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || y_offset != Game.WORLD_Y_OFFSET || floor > 3 || floor < 0) {
-                                System.out.println("Invalid region or not logged in; Aborting");
-                                return;
-                            }
-
-                            if (!validCoordinates(x, y)) {
-                                System.out.println("Invalid coordinates " + x + ", " + y + "; Aborting");
-                                return;
-                            } else if (type != 60000 && !objectIDBlacklisted(type, x, y)) {
-                                if (type < 0 || type > 1188) {
-                                    System.out.println("GameObject id " + type + " at " + x + ", " + y + " is invalid; Aborting");
-                                    return;
-                                }
-
-                                int key = packCoordinate(x, y);
-                                //System.out.println("x: " + x + ", y: " + y);
-                                if (objects.containsKey(key))
-                                    type = handleObjectIDConflict(objects.get(key), type);
-                                objects.put(key, type);
-                            }
-                        }
-                    }
-                    break;
-                case PacketBuilder.OPCODE_WALLOBJECT_HANDLER:
-                    while (length > 0) {
-                        if (replay.readUnsignedByte() == 255) {
-                            replay.skip(2);
-                            length -= 3;
-                        } else {
-                            replay.skip(-1);
-                            int type = replay.readUnsignedShort();
-                            int x = playerX + replay.readByte();
-                            int y = playerY + replay.readByte();
-                            byte direction = replay.readByte();
-                            length -= 5;
-
-                            if (!loggedIn || planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || y_offset != Game.WORLD_Y_OFFSET || floor > 3 || floor < 0) {
-                                System.out.println("Invalid region or not logged in; Aborting");
-                                return;
-                            }
-
-                            if (!validCoordinates(x, y)) {
-                                System.out.println("Invalid coordinates " + x + ", " + y + "; Aborting");
-                                return;
-                            } else if (type != 0xFFFF && !wallObjectIDBlacklisted(type, x, y)) {
-                                if (type < 0 || type > 213) {
-                                    System.out.println("WallObject id " + type + " at " + x + ", " + y + " is invalid; Aborting");
-                                    return;
-                                }
-
-                                int key = packCoordinate(x, y);
-                                int value = handleWallObjectIDConvert(packCoordinate(type, direction));
-                                if (wallObjects.containsKey(key))
-                                    value = handleWallObjectIDConflict(wallObjects.get(key), value);
-                                wallObjects.put(key, value);
-                            }
-                        }
-                    }
-                    break;
-                default:
-                    replay.skip(length);
-                    break;
-            }
-        }
-
-        for (HashMap.Entry<Integer, Integer> entry : objects.entrySet()) {
-            int key = entry.getKey();
-            int id = entry.getValue();
-            if (m_objects.containsKey(key)) {
-                int oldID = m_objects.get(key);
-                if (oldID == OBJECT_BLANK)
-                    continue;
-                if (id == OBJECT_BLANK && oldID != OBJECT_BLANK && objectIDRemoveList(oldID, getPackedX(key), getPackedY(key))) {
-                    m_objects.put(key, id);
-                    continue;
-                }
-                if (id != OBJECT_BLANK) {
-                    id = handleObjectIDConflict(m_objects.get(key), id);
-                    m_objects.put(key, id);
-                }
-            } else {
-                m_objects.put(key, id);
-            }
-        }
-        for (HashMap.Entry<Integer, Integer> entry : wallObjects.entrySet()) {
-            int key = entry.getKey();
-            int value = entry.getValue();
-            if (m_wallObjects.containsKey(key))
-                value = handleWallObjectIDConflict(m_wallObjects.get(key), value);
-            m_wallObjects.put(key, value);
-        }
-    }
-
     private static void sanitizeDirectory(String path) {
         File[] files = new File(path).listFiles();
         for (int i = 0; i < files.length; i++) {
@@ -986,30 +936,17 @@ public class Scraper {
         }
     }
 
-    private static void scrapeDirectory(String path) {
-        File[] files = new File(path).listFiles();
-        for (int i = 0; i < files.length; i++) {
-            File f = files[i];
-            if (f.isDirectory()) {
-                String replayDirectory = f.getAbsolutePath();
-                File replay = new File(replayDirectory + "/in.bin.gz");
-                if (replay.exists())
-                    scrapeReplay(replayDirectory);
-                else
-                    scrapeDirectory(replayDirectory);
-            }
-        }
-    }
-
     private static void printHelp(String args[]) {
         System.out.println("\nrscminus v" + Settings.versionNumber+"\n");
         System.out.println("syntax:");
         System.out.println("\t[OPTIONS] [REPLAY DIRECTORY]");
         System.out.println("options:");
         System.out.println("\t-a\t\t\tAppend client test data to the end of all replays being processed");
-        System.out.println("\t-d\t\t\tDump objects & other data to binary files");
+        System.out.println("\t-d\t\t\tDump scenery & boundary data to binary files");
         System.out.println("\t-f\t\t\tRemove opcodes related to the friend's list");
         System.out.println("\t-h\t\t\tShow this usage dialog");
+        System.out.println("\t-m\t\t\tDump System Messages and NPC <-> Player Dialogues to SQL file");
+        System.out.println("\t-n\t\t\tDump NPC locations to SQL file");
         System.out.println("\t-p\t\t\tSanitize public chat");
         System.out.println("\t-s\t\t\tExport sanitized replays");
         System.out.println("\t-v<0-" + ReplayEditor.VERSION + ">\t\t\tSet sanitizer replay version (Default is original replay version)");
@@ -1024,8 +961,8 @@ public class Scraper {
                     appendingToReplay = true;
                     break;
                 case "-d":
-                    Settings.dumpObjects = true;
-                    Settings.dumpWallObjects = true;
+                    Settings.dumpScenery = true;
+                    Settings.dumpBoundaries = true;
                     Logger.Info("dumping stuff");
                     break;
                 case "-f":
@@ -1034,6 +971,14 @@ public class Scraper {
                     break;
                 case "-h":
                     return false;
+                case "-m":
+                    Settings.dumpMessages = true;
+                    Logger.Info("dump messages set");
+                    break;
+                case "-n":
+                    Settings.dumpNpcLocs = true;
+                    Logger.Info("dump npcs locations set");
+                    break;
                 case "-p":
                     Settings.sanitizePublicChat = true;
                     Logger.Info("sanitize Public Chat set");
@@ -1071,31 +1016,6 @@ public class Scraper {
         return false;
     }
     
-    public static void scrape() {
-        scraping = true;
-        Settings.scraperOutputPath = Settings.Dir.JAR + "/dump/";
-        // Scrape directory
-        if (Settings.dumpObjects || Settings.dumpWallObjects) {
-            FileUtil.mkdir(Settings.scraperOutputPath);
-            File replay = new File(Settings.sanitizePath + "/in.bin.gz");
-            if (replay.exists())
-                scrapeReplay(Settings.sanitizePath);
-            else
-                scrapeDirectory(Settings.sanitizePath);
-        } else {
-            Logger.Warn("@|red You attempted to scrape nothing. Make sure to select something to scrape.|@");
-        }
-        if (Settings.dumpObjects) {
-            dumpObjects(Settings.scraperOutputPath + "objects.bin");
-        }
-        if (Settings.dumpWallObjects) {
-            dumpWallObjects(Settings.scraperOutputPath + "wallobjects.bin");
-        }
-        Logger.Info("Saved to " + Settings.scraperOutputPath);
-        Logger.Info("@|green,intensity_bold Finished Scraping!|@");
-        scraping = false;
-    }
-    
     public static void strip() {
         Logger.Info("Stripping " + Settings.sanitizePath);
         String filename = new File(Settings.sanitizePath).getName();
@@ -1108,10 +1028,14 @@ public class Scraper {
         stripping = true;
         Settings.sanitizePath = new File(Settings.sanitizePath).toPath().toAbsolutePath().toString();
         Settings.sanitizeBaseOutputPath = Settings.Dir.JAR + "/strippedReplays";
+        Settings.scraperOutputPath = Settings.Dir.JAR + "/dump/";
+        FileUtil.mkdir(Settings.scraperOutputPath);
         Settings.sanitizeOutputPath = Settings.sanitizeBaseOutputPath;
 
-        m_npcLocCSV = new HashMap<Integer, String>();
-        m_npcLocCSV.put(m_npcLocCSV.size(), "replayName,timeStamp,irlTimeStamp,npcId,npcServerIndex (Not Unique!),XCoordinate,YCoordinate");
+        if (Settings.dumpNpcLocs) {
+            m_npcLocCSV = new HashMap<Integer, String>();
+            m_npcLocCSV.put(m_npcLocCSV.size(), "replayName,timeStamp,irlTimeStamp,npcId,npcServerIndex (Not Unique!),XCoordinate,YCoordinate");
+        }
 
         FileUtil.mkdir(Settings.sanitizePath);
 
@@ -1133,6 +1057,13 @@ public class Scraper {
 
         if (Settings.dumpNpcLocs) {
             dumpNPCLocs(Settings.scraperOutputPath + "npcLocs.csv");
+        }
+
+        if (Settings.dumpScenery) {
+            dumpScenery(Settings.scraperOutputPath + "scenery.bin");
+        }
+        if (Settings.dumpBoundaries) {
+            dumpBoundaries(Settings.scraperOutputPath + "boundaries.bin");
         }
 
         Logger.Info(String.format("@|green %d out of %d replays were able to have an IP address determined.|@", ipFoundCount, replaysProcessedCount));
@@ -1160,11 +1091,12 @@ public class Scraper {
 
             return;
         } else { // command line arguments specified, don't create gui
-            // TODO: Combine dumper with sanitizer
-            if (Settings.dumpObjects || Settings.dumpWallObjects) {
-                scrape();
-            }
-            if (Settings.sanitizeReplays) {
+            if (    Settings.dumpScenery ||
+                    Settings.dumpBoundaries ||
+                    Settings.dumpNpcLocs ||
+                    Settings.dumpMessages ||
+                    Settings.sanitizeReplays
+            ) {
                 strip();
             }
             return;
