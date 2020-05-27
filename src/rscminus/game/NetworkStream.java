@@ -78,6 +78,8 @@ public class NetworkStream {
         m_position = 0;
     }
 
+    public int getBufferSize() { return m_buffer.length; }
+
     public int getPosition() {
         return m_position;
     }
@@ -186,6 +188,8 @@ public class NetworkStream {
     public int readUnsignedByte() {
         return m_buffer[m_position++] & 0xFF;
     }
+
+    public int peekUnsignedByte() { return m_buffer[m_position] & 0xFF; }
 
     public int readUnsignedShort() {
         return (readUnsignedByte() << 8) | readUnsignedByte();

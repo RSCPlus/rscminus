@@ -22,6 +22,7 @@ package rscminus.game.entity;
 import rscminus.common.ISAACCipher;
 import rscminus.common.JGameData;
 import rscminus.common.SocketUtil;
+import rscminus.common.StringEncryption;
 import rscminus.game.*;
 import rscminus.game.constants.Game;
 import rscminus.game.data.LoginInfo;
@@ -66,7 +67,7 @@ public class Player extends Entity {
     public static final int OPCODE_WALKTO = 187;
     public static final int OPCODE_SET_APPEARANCE = 235;
     public static final int OPCODE_DROP_ITEM = 246;
-
+    public static final int OPCODE_PUBLIC_CHAT = 216;
     // Player update
     private boolean m_updateAppearance;
 
@@ -81,6 +82,9 @@ public class Player extends Entity {
     private boolean m_loggedIn;
     private boolean m_loggedOut;
     private WalkingQueue m_walkingQueue;
+
+    //Buffers
+    private final byte[] chatBuffer = new byte[32767];
 
     public Player(int index, PlayerManager playerManager, WorldManager worldManager) {
         m_index = index;
@@ -656,8 +660,31 @@ public class Player extends Entity {
                 m_actionSlot.setAction(ActionSlot.ACTION_INVENTORY_DROP);
                 m_actionSlot.setInventorySlot(m_packetStream.readUnsignedShort());
                 break;
+            case OPCODE_PUBLIC_CHAT:
+                int messageLength = m_packetStream.peekUnsignedByte();
+
+                //The message length can be one or two bytes
+                if (messageLength < 128)
+                    messageLength = m_packetStream.readUnsignedByte();
+                else
+                    messageLength = m_packetStream.readUnsignedShort() - 32768;
+
+                //Protect against bad values
+                if (messageLength <= 0 || messageLength >= m_packetStream.getBufferSize() - m_packetStream.getPosition())
+                    break;
+
+                //Decipher the message and build the string
+                StringEncryption.decipher(chatBuffer, m_packetStream, messageLength);
+                String message = StringEncryption.buildString(chatBuffer, messageLength);
+
+                PacketBuilder.sendMessage(Game.CHAT_CHAT, message, null, null, null, m_outgoingStream, m_isaacOutgoing);
+                break;
             default:
                 System.out.println("undefined opcode: " + opcode + ", length: " + length);
+                while (length-- > 0) {
+                    System.out.print(m_packetStream.readByte() + " ");
+                }
+                System.out.println();
                 break;
             }
         }
