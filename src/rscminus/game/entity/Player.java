@@ -664,18 +664,14 @@ public class Player extends Entity {
                 int messageLength = m_packetStream.peekUnsignedByte();
 
                 //The message length can be one or two bytes
-                if (messageLength < 128)
-                    messageLength = m_packetStream.readUnsignedByte();
-                else
-                    messageLength = m_packetStream.readUnsignedShort() - 32768;
+                messageLength = messageLength < 128 ? m_packetStream.readUnsignedByte() : m_packetStream.readUnsignedShort() - 32768;
 
                 //Protect against bad values
                 if (messageLength <= 0 || messageLength >= m_packetStream.getBufferSize() - m_packetStream.getPosition())
                     break;
 
-                //Decipher the message and build the string
-                StringEncryption.decipher(chatBuffer, m_packetStream, messageLength);
-                String message = StringEncryption.buildString(chatBuffer, messageLength);
+                //Decipher the message
+                String message = StringEncryption.decipher(chatBuffer, m_packetStream, messageLength);
 
                 PacketBuilder.sendMessage(Game.CHAT_CHAT, message, null, null, null, m_outgoingStream, m_isaacOutgoing);
                 break;

@@ -21,13 +21,11 @@ package rscminus.common;
 
 import rscminus.game.NetworkStream;
 
-import java.util.HashMap;
-
 public class StringEncryption {
 
-    private final static char[] specialCharacters = new char[] { '\u20ac', '\0', '\u201a', '\u0192', '\u201e', '\u2026', '\u2020', '\u2021', '\u02c6',
-            '\u2030', '\u0160', '\u2039', '\u0152', '\0', '\u017d', '\0', '\0', '\u2018', '\u2019', '\u201c',
-            '\u201d', '\u2022', '\u2013', '\u2014', '\u02dc', '\u2122', '\u0161', '\u203a', '\u0153', '\0',
+    private final static char[] specialCharacters = new char[] { '\u20ac', '?', '\u201a', '\u0192', '\u201e', '\u2026', '\u2020', '\u2021', '\u02c6',
+            '\u2030', '\u0160', '\u2039', '\u0152', '?', '\u017d', '?', '?', '\u2018', '\u2019', '\u201c',
+            '\u201d', '\u2022', '\u2013', '\u2014', '\u02dc', '\u2122', '\u0161', '\u203a', '\u0153', '?',
             '\u017e', '\u0178' };
 
     private final static byte[] init = new byte[] { 22, 22, 22, 22, 22, 22, 21, 22, 22, 20, 22, 22, 22, 21, 22, 22,
@@ -53,76 +51,67 @@ public class StringEncryption {
         for (int initPos = 0; initPos < init.length; ++initPos)
         {
             final int initValue = init[initPos];
-            if (initValue != 0)
+            final int cBitSelector = 1 << (32 - initValue);
+            final int cValue = c[initValue];
+            a[initPos] = cValue;
+            int cValueBit;
+            if ((cValue & cBitSelector) == 0)
             {
-                final int initBitSelector = 1 << (32 - initValue);
-                final int cValue = c[initValue];
-                a[initPos] = cValue;
-                int cValueBit;
-                if ((cValue & initBitSelector) == 0)
+                cValueBit = cValue | cBitSelector;
+                for (int initValueCounter = initValue - 1; initValueCounter > 0; --initValueCounter)
                 {
-                    cValueBit = cValue | initBitSelector;
-                    for (int initValueCounter = initValue - 1; initValueCounter > 0; --initValueCounter)
+                    final int cValueTemp = c[initValueCounter];
+                    if (cValue != cValueTemp)
+                        break;
+                    final int cValueTempBitSelector = 1 << (32 - initValueCounter);
+                    if ((cValueTemp & cValueTempBitSelector) == 0)
                     {
-                        final int cValueTemp = c[initValueCounter];
-                        if (cValue != cValueTemp)
-                            break;
-                        final int cValueTempBitSelector = 1 << (32 - initValueCounter);
-                        if ((cValueTemp & cValueTempBitSelector) == 0)
-                        {
-                            c[initValueCounter] = cValueTempBitSelector | cValueTemp;
-                        }
-                        else
-                        {
-                            c[initValueCounter] = c[initValueCounter - 1];
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    cValueBit = c[initValue + -1];
-                }
-                c[initValue] = cValueBit;
-                for (int initValueCounter = initValue + 1; initValueCounter <= 32; ++initValueCounter)
-                {
-                    if (cValue == c[initValueCounter])
-                    {
-                        c[initValueCounter] = cValueBit;
-                    }
-                }
-                int i_31_ = 0;
-                for (int initValueCounter = 0; initValueCounter < initValue; ++initValueCounter)
-                {
-                    int i_33_ = 0x80000000 >>> initValueCounter;
-                    if ((cValue & i_33_) == 0)
-                    {
-                        i_31_++;
+                        c[initValueCounter] = cValueTempBitSelector | cValueTemp;
                     }
                     else
                     {
-                        if (b[i_31_] == 0)
-                        {
-                            b[i_31_] = i_21_;
-                        }
-                        i_31_ = b[i_31_];
+                        c[initValueCounter] = c[initValueCounter - 1];
+                        break;
                     }
-                    if (b.length <= i_31_)
-                    {
-                        final int[] is_34_ = new int[b.length * 2];
-                        for (int i_35_ = 0; i_35_ < b.length; i_35_++)
-                        {
-                            is_34_[i_35_] = b[i_35_];
-                        }
-                        b = is_34_;
-                    }
-                }
-                b[i_31_] = ~initPos;
-                if (i_31_ >= i_21_)
-                {
-                    i_21_ = i_31_ + 1;
                 }
             }
+            else
+            {
+                cValueBit = c[initValue + -1];
+            }
+            c[initValue] = cValueBit;
+            for (int initValueCounter = initValue + 1; initValueCounter <= 32; ++initValueCounter)
+            {
+                if (cValue == c[initValueCounter])
+                {
+                    c[initValueCounter] = cValueBit;
+                }
+            }
+            int bIndex = 0;
+            for (int initValueCounter = 0; initValueCounter < initValue; ++initValueCounter)
+            {
+                int cBitSelector2 = 0x80000000 >>> initValueCounter;
+                if ((cValue & cBitSelector2) == 0)
+                {
+                    bIndex++;
+                }
+                else
+                {
+                    if (b[bIndex] == 0)
+                        b[bIndex] = i_21_;
+
+                    bIndex = b[bIndex];
+                }
+                if (b.length <= bIndex)
+                {
+                    final int[] bResized = new int[b.length * 2];
+                    System.arraycopy(b, 0, bResized, 0, b.length);
+                    b = bResized;
+                }
+            }
+            b[bIndex] = ~initPos;
+            if (bIndex >= i_21_)
+                i_21_ = bIndex + 1;
         }
     }
 
@@ -130,172 +119,55 @@ public class StringEncryption {
         return 0;
     }
 
-    public static void decipher(final byte[] outputBuffer, final NetworkStream m_packetStream, final int messageLength) {
-        int i_1_ = 0;
-        int i_4_ = 0;
-        for (;;)
+    public static String decipher(final byte[] outputBuffer, final NetworkStream m_packetStream, final int messageLength) {
+        int bufferIndex = 0;
+        int temp = 0;
+        int bValue;
+
+        while (bufferIndex < messageLength)
         {
-            final byte i_6_ = m_packetStream.readByte();
-            if (0 > i_6_)
+            final byte encipheredByte = m_packetStream.readByte();
+            temp = encipheredByte < 0 ? b[temp] : temp + 1;
+
+            if (0 > (bValue = b[temp]))
             {
-                i_4_ = b[i_4_];
-            }
-            else
-            {
-                i_4_++;
-            }
-            int i_7_;
-            if (0 > (i_7_ = b[i_4_]))
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (i_1_ >= messageLength)
-                {
+                outputBuffer[bufferIndex++] = (byte) (~bValue);
+                if (bufferIndex >= messageLength)
                     break;
+
+                temp = 0;
+            }
+
+            int andVal = 0x40;
+            while (andVal > 0) {
+                temp = (encipheredByte & andVal) == 0 ? temp + 1 : b[temp];
+                if ((bValue = b[temp]) < 0) {
+                    outputBuffer[bufferIndex++] = (byte) (~bValue);
+                    if (bufferIndex >= messageLength)
+                        break;
+
+                    temp = 0;
                 }
-                i_4_ = 0;
-            }
-            if ((0x40 & i_6_) != 0)
-            {
-                i_4_ = b[i_4_];
-            }
-            else
-            {
-                i_4_++;
-            }
-            if ((i_7_ = b[i_4_]) < 0)
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (i_1_ >= messageLength)
-                {
-                    break;
-                }
-                i_4_ = 0;
-            }
-            if ((0x20 & i_6_) != 0)
-            {
-                i_4_ = b[i_4_];
-            }
-            else
-            {
-                i_4_++;
-            }
-            if ((i_7_ = b[i_4_]) < 0)
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (i_1_ >= messageLength)
-                {
-                    break;
-                }
-                i_4_ = 0;
-            }
-            if ((0x10 & i_6_) == 0)
-            {
-                i_4_++;
-            }
-            else
-            {
-                i_4_ = b[i_4_];
-            }
-            if (0 > (i_7_ = b[i_4_]))
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (i_1_ >= messageLength)
-                {
-                    break;
-                }
-                i_4_ = 0;
-            }
-            if ((0x8 & i_6_) == 0)
-            {
-                i_4_++;
-            }
-            else
-            {
-                i_4_ = b[i_4_];
-            }
-            if ((i_7_ = b[i_4_]) < 0)
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (i_1_ >= messageLength)
-                {
-                    break;
-                }
-                i_4_ = 0;
-            }
-            if ((0x4 & i_6_) != 0)
-            {
-                i_4_ = b[i_4_];
-            }
-            else
-            {
-                i_4_++;
-            }
-            if ((i_7_ = b[i_4_]) < 0)
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (i_1_ >= messageLength)
-                {
-                    break;
-                }
-                i_4_ = 0;
-            }
-            if ((i_6_ & 0x2) == 0)
-            {
-                i_4_++;
-            }
-            else
-            {
-                i_4_ = b[i_4_];
-            }
-            if (0 > (i_7_ = b[i_4_]))
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (messageLength <= i_1_)
-                {
-                    break;
-                }
-                i_4_ = 0;
-            }
-            if ((0x1 & i_6_) == 0)
-            {
-                i_4_++;
-            }
-            else
-            {
-                i_4_ = b[i_4_];
-            }
-            if ((i_7_ = b[i_4_]) < 0)
-            {
-                outputBuffer[i_1_++] = (byte) (~i_7_);
-                if (i_1_ >= messageLength)
-                {
-                    break;
-                }
-                i_4_ = 0;
+                andVal >>= 1;
             }
         }
+
+        return buildString(outputBuffer, messageLength);
     }
 
     public static String buildString(final byte[] inputBuffer, int messageLength) {
-        //Clear the stringbuilder
+        //Clear the string builder
         messageBuilder.setLength(0);
 
-        int count = 0;
-        for (int i_14_ = 0; i_14_ < messageLength; i_14_++)
+        for (int bufferIndex = 0; bufferIndex < messageLength; ++bufferIndex)
         {
-            int i_15_ = 0xff & inputBuffer[i_14_];
-            if (i_15_ != 0)
+            int bufferValue = inputBuffer[bufferIndex] & 0xFF;
+            if (bufferValue != 0)
             {
-                if ((i_15_ >= 128) && (i_15_ < 160))
-                {
-                    int i_16_ = specialCharacters[i_15_ - 128];
-                    if (i_16_ == 0)
-                    {
-                        i_16_ = 63;
-                    }
-                    i_15_ = i_16_;
-                }
-                messageBuilder.append((char) i_15_);
+                if (bufferValue >= 128 && bufferValue < 160)
+                    bufferValue = specialCharacters[bufferValue - 128];
+
+                messageBuilder.append((char) bufferValue);
             }
         }
         return messageBuilder.toString();
