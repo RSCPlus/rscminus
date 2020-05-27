@@ -162,8 +162,10 @@ public class NetworkStream {
         writeUnsignedByte(value & 0xFF);
     }
 
-    public void writeString(String value) {
-        writeArray(value.getBytes(), 0, value.length());
+    public void writeString(CharSequence charSequence) {
+        for (int i=0; i < charSequence.length(); ++i)
+            writeByte((byte)charSequence.charAt(i));
+
         writeUnsignedByte(0x00);
     }
 
