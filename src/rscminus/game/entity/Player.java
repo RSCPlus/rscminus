@@ -68,7 +68,9 @@ public class Player extends Entity {
     public static final int OPCODE_SET_APPEARANCE = 235;
     public static final int OPCODE_DROP_ITEM = 246;
     public static final int OPCODE_PUBLIC_CHAT = 216;
+
     // Player update
+    private boolean m_updateChat;
     private boolean m_updateAppearance;
 
     // Game state
@@ -83,8 +85,8 @@ public class Player extends Entity {
     private boolean m_loggedOut;
     private WalkingQueue m_walkingQueue;
 
-    //Buffers
-    private final byte[] chatBuffer = new byte[32767];
+    public byte[] chatMessage = new byte[81];
+    public int boilength;
 
     public Player(int index, PlayerManager playerManager, WorldManager worldManager) {
         m_index = index;
@@ -126,6 +128,7 @@ public class Player extends Entity {
 
         // Player update
         m_updateAppearance = true;
+        m_updateChat = false;
     }
 
     public void setLoginInfo(LoginInfo loginInfo) {
@@ -530,6 +533,8 @@ public class Player extends Entity {
     public void processPlayerUpdate(NetworkStream stream) {
         if (m_updateAppearance)
             PacketBuilder.addPlayerUpdateAppearance(this, stream);
+        if (m_updateChat)
+            PacketBuilder.addPlayerUpdateChat(this, stream);
     }
 
     public void processClientUpdate() {
@@ -670,10 +675,10 @@ public class Player extends Entity {
                 if (messageLength <= 0 || messageLength >= m_packetStream.getBufferSize() - m_packetStream.getPosition())
                     break;
 
-                //Decipher the message
-                String message = StringEncryption.decipher(chatBuffer, m_packetStream, messageLength);
-
-                PacketBuilder.sendMessage(Game.CHAT_CHAT, message, null, null, null, m_outgoingStream, m_isaacOutgoing);
+                String message = StringEncryption.decipher(m_packetStream, messageLength);
+                //TODO: Profanity filter
+                boilength = StringEncryption.encipher(chatMessage, message);
+                m_updateChat = true;
                 break;
             default:
                 System.out.println("undefined opcode: " + opcode + ", length: " + length);
@@ -691,6 +696,7 @@ public class Player extends Entity {
 
         // Reset player update states
         m_updateAppearance = false;
+        m_updateChat = false;
 
         // Player is logged out, remove them from the player list
         if (m_loggedOut)
