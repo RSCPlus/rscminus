@@ -312,6 +312,14 @@ public class PacketBuilder {
         m_count = 0;
     }
 
+    public static void addPlayerUpdateChat(Player player, NetworkStream stream) {
+        stream.writeUnsignedShort(player.getIndex());
+        stream.writeUnsignedByte(1); // Update type
+        stream.writeUnsignedByte(0); // Mod status
+        stream.writeArray(player.chatMessage, 0, player.boilength);
+        ++m_count;
+    }
+
     public static void addPlayerUpdateAppearance(Player player, NetworkStream stream) {
         SaveInfo saveInfo = player.getSaveInfo();
         stream.writeUnsignedShort(player.getIndex()); // Index
@@ -329,7 +337,7 @@ public class PacketBuilder {
         stream.writeUnsignedByte(saveInfo.skinColor); // Skin color
         stream.writeUnsignedByte(3); // Level
         stream.writeUnsignedByte(0); // Skull
-        m_count++;
+        ++m_count;
     }
 
     public static void endPlayerUpdate(NetworkStream stream) {
