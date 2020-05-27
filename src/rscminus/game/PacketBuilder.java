@@ -315,6 +315,7 @@ public class PacketBuilder {
     public static void addPlayerUpdateChat(Player player, NetworkStream stream) {
         stream.writeUnsignedShort(player.getIndex());
         stream.writeUnsignedByte(1); // Update type
+        //TODO: Implement MOD status
         stream.writeUnsignedByte(0); // Mod status
         stream.writeArray(player.chatMessage, 1, player.chatMessage[0] & 0xFF);
         ++m_count;
