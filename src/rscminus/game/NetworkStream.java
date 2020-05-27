@@ -251,6 +251,13 @@ public class NetworkStream {
         return length;
     }
 
+    public int readVariableSize() {
+        int messageLength = peekUnsignedByte();
+
+        //The message length can be one or two bytes
+        return messageLength < 128 ? readUnsignedByte() : readUnsignedShort() - 32768;
+    }
+
     public int readPacket(NetworkStream stream) {
         int available = m_position;
         seek(0);

@@ -316,7 +316,7 @@ public class PacketBuilder {
         stream.writeUnsignedShort(player.getIndex());
         stream.writeUnsignedByte(1); // Update type
         stream.writeUnsignedByte(0); // Mod status
-        stream.writeArray(player.chatMessage, 0, player.boilength);
+        stream.writeArray(player.chatMessage, 1, player.chatMessage[0] & 0xFF);
         ++m_count;
     }
 

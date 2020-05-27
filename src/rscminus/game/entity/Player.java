@@ -85,8 +85,7 @@ public class Player extends Entity {
     private boolean m_loggedOut;
     private WalkingQueue m_walkingQueue;
 
-    public byte[] chatMessage = new byte[81];
-    public int boilength;
+    public byte[] chatMessage = new byte[256];
 
     public Player(int index, PlayerManager playerManager, WorldManager worldManager) {
         m_index = index;
@@ -666,18 +665,14 @@ public class Player extends Entity {
                 m_actionSlot.setInventorySlot(m_packetStream.readUnsignedShort());
                 break;
             case OPCODE_PUBLIC_CHAT:
-                int messageLength = m_packetStream.peekUnsignedByte();
+                int messageLength = m_packetStream.readVariableSize();
 
-                //The message length can be one or two bytes
-                messageLength = messageLength < 128 ? m_packetStream.readUnsignedByte() : m_packetStream.readUnsignedShort() - 32768;
-
-                //Protect against bad values
-                if (messageLength <= 0 || messageLength >= m_packetStream.getBufferSize() - m_packetStream.getPosition())
+                if (messageLength <= 0 || messageLength > 80)
                     break;
 
                 String message = StringEncryption.decipher(m_packetStream, messageLength);
                 //TODO: Profanity filter
-                boilength = StringEncryption.encipher(chatMessage, message);
+                StringEncryption.encipher(chatMessage, message);
                 m_updateChat = true;
                 break;
             default:

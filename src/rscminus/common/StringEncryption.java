@@ -25,7 +25,7 @@ import java.util.HashMap;
 
 public class StringEncryption {
 
-    private static final byte[] chatBuffer = new byte[32767];
+    private static final byte[] chatBuffer = new byte[256];
 
     private final static char[] specialCharacters = new char[] { '\u20ac', '?', '\u201a', '\u0192', '\u201e', '\u2026', '\u2020', '\u2021', '\u02c6',
             '\u2030', '\u0160', '\u2039', '\u0152', '?', '\u017d', '?', '?', '\u2018', '\u2019', '\u201c',
@@ -125,54 +125,51 @@ public class StringEncryption {
         }
     }
 
-    public static int encipher(byte[] outputBuffer, String message) {
-        outputBuffer[0] = (byte)message.length();
+    public static void encipher(byte[] outputBuffer, String message) {
         convertMessageToBytes(message);
-        int i_12_ = 0;
-        int i_13_ = 8;
-        for (int i_11_ = 0; message.length() > i_11_; i_11_++)
+        int encipheredByte = 0;
+        int outputBitOffset = 16;
+        for (int messageIndex = 0; message.length() > messageIndex; ++messageIndex)
         {
-            final int i_14_ = chatBuffer[i_11_] & 0xff;
-            final int i_15_ = a[i_14_];
-            final int i_16_ = init[i_14_];
-            if (i_16_ == 0)
+            final int messageCharacter = chatBuffer[messageIndex] & 0xff;
+            final int aValue = a[messageCharacter];
+            final int initValue = init[messageCharacter];
+
+            int outputByteOffset = outputBitOffset >> 3;
+            int temp = 0x7 & outputBitOffset;
+            encipheredByte &= -temp >> 31;
+            final int outputByteOffset2 = outputByteOffset + ((temp + initValue - 1) >> 3);
+            outputBitOffset += initValue;
+            temp += 24;
+            encipheredByte |= (aValue >>> temp);
+            outputBuffer[outputByteOffset] = (byte) (encipheredByte);
+            if (outputByteOffset2 > outputByteOffset)
             {
-                throw new RuntimeException("" + i_14_);
-            }
-            int i_17_ = i_13_ >> 3;
-            int i_18_ = 0x7 & i_13_;
-            i_12_ &= -i_18_ >> 31;
-            final int i_19_ = i_17_ + ((i_18_ + i_16_ - 1) >> 3);
-            i_13_ += i_16_;
-            i_18_ += 24;
-            i_12_ |= i_15_ >>> i_18_;
-            outputBuffer[i_17_] = (byte) i_12_;
-            if (i_19_ > i_17_)
-            {
-                i_17_++;
-                i_18_ -= 8;
-                outputBuffer[i_17_] = (byte) (i_12_ = i_15_ >>> i_18_);
-                if (i_17_ < i_19_)
+                outputByteOffset++;
+                temp -= 8;
+                outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue >>> temp);
+                if (outputByteOffset < outputByteOffset2)
                 {
-                    i_17_++;
-                    i_18_ -= 8;
-                    outputBuffer[i_17_] = (byte) (i_12_ = i_15_ >>> i_18_);
-                    if (i_19_ > i_17_)
+                    outputByteOffset++;
+                    temp -= 8;
+                    outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue >>> temp);
+                    if (outputByteOffset2 > outputByteOffset)
                     {
-                        i_17_++;
-                        i_18_ -= 8;
-                        outputBuffer[i_17_] = (byte) (i_12_ = i_15_ >>> i_18_);
-                        if (i_19_ > i_17_)
+                        outputByteOffset++;
+                        temp -= 8;
+                        outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue >>> temp);
+                        if (outputByteOffset2 > outputByteOffset)
                         {
-                            i_18_ -= 8;
-                            i_17_++;
-                            outputBuffer[i_17_] = (byte) (i_12_ = i_15_ << -i_18_);
+                            temp -= 8;
+                            outputByteOffset++;
+                            outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue << -temp);
                         }
                     }
                 }
             }
         }
-        return (i_13_ + 7) >> 3;
+        outputBuffer[0] = (byte)(((outputBitOffset + 7) >> 3) + -1);
+        outputBuffer[1] = (byte)message.length();
     }
 
     public static String decipher(final NetworkStream m_packetStream, final int messageLength) {
