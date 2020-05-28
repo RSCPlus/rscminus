@@ -666,10 +666,8 @@ public class Player extends Entity {
                 break;
             case OPCODE_PUBLIC_CHAT:
                 int messageLength = m_packetStream.readVariableSize();
-
                 if (messageLength <= 0 || messageLength > 80)
                     break;
-
                 String message = StringEncryption.decipher(m_packetStream, messageLength);
                 //TODO: Profanity filter
                 StringEncryption.encipher(chatMessage, message);

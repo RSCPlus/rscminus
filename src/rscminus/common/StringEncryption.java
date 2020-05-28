@@ -25,14 +25,15 @@ import java.util.HashMap;
 
 public class StringEncryption {
 
-    private static final byte[] chatBuffer = new byte[256];
-
+    //Unicode characters that are mapped to specific byte values
+    //The array is for byte->char, the dict is for char->byte
     private final static char[] specialCharacters = new char[] { '\u20ac', '?', '\u201a', '\u0192', '\u201e', '\u2026', '\u2020', '\u2021', '\u02c6',
             '\u2030', '\u0160', '\u2039', '\u0152', '?', '\u017d', '?', '?', '\u2018', '\u2019', '\u201c',
             '\u201d', '\u2022', '\u2013', '\u2014', '\u02dc', '\u2122', '\u0161', '\u203a', '\u0153', '?',
             '\u017e', '\u0178' };
     private final static HashMap<Character, Byte> specialCharacterMap = new HashMap<>();
 
+    //Used to build the cipher blocks. Copied from the client.
     private final static byte[] init = new byte[] { 22, 22, 22, 22, 22, 22, 21, 22, 22, 20, 22, 22, 22, 21, 22, 22,
             22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 3, 8, 22, 16, 22, 16, 17, 7, 13, 13, 13, 16,
             7, 10, 6, 16, 10, 11, 12, 12, 12, 12, 13, 13, 14, 14, 11, 14, 19, 15, 17, 8, 11, 9, 10, 10, 10, 10, 11, 10,
@@ -44,11 +45,14 @@ public class StringEncryption {
             22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
             22, 22, 22, 22, 22, 22, 21, 22, 21, 22, 22, 22, 21, 22, 22 };
 
+    //Cipher blocks
     private final static int[] a = new int[init.length];
     private static int[] b = new int[8];
 
-    private final static StringBuilder messageBuilder = new StringBuilder();
+    //Used for both enciphering and deciphering chat
+    private static final byte[] chatBuffer = new byte[256];
 
+    private final static StringBuilder messageBuilder = new StringBuilder();
 
     public static void init() {
         //Initialize the special character map
