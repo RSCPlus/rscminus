@@ -22,7 +22,7 @@ package rscminus.game;
 import rscminus.common.Crypto;
 import rscminus.common.JGameData;
 import rscminus.common.Sleep;
-import rscminus.common.StringEncryption;
+import rscminus.common.StringChatCipher;
 
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
@@ -55,7 +55,7 @@ public class Server implements Runnable {
     public void run() {
         // Initialize rscminus
         Crypto.init();
-        StringEncryption.init();
+        StringChatCipher.init();
         JGameData.init(true);
         System.out.println("exponent: " + Crypto.getPublicExponent());
         System.out.println("modulus: " + Crypto.getPublicModulus());

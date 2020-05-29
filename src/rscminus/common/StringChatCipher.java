@@ -23,7 +23,7 @@ import rscminus.game.NetworkStream;
 
 import java.util.HashMap;
 
-public class StringEncryption {
+public class StringChatCipher {
 
     //Unicode characters that are mapped to specific byte values
     //The array is for byte->char, the dict is for char->byte
@@ -46,8 +46,8 @@ public class StringEncryption {
             22, 22, 22, 22, 22, 22, 21, 22, 21, 22, 22, 22, 21, 22, 22 };
 
     //Cipher blocks
-    private final static int[] a = new int[init.length];
-    private static int[] b = new int[8];
+    private final static int[] cipherBlock = new int[init.length];
+    private static int[] cipherDictionary = new int[8];
 
     //Used for both enciphering and deciphering chat
     private static final byte[] chatBuffer = new byte[256];
@@ -59,73 +59,67 @@ public class StringEncryption {
         for (int i=0; i < specialCharacters.length; ++i)
             specialCharacterMap.put(specialCharacters[i], (byte)(i - 128));
 
-        //Initialize arrays for ciphering
-        final int[] c = new int[33];
-        int bIndexTemp = 0;
+        //Initialize cipher blocks
+        final int[] blockBuilder = new int[33];
+        int cipherDictIndexTemp = 0;
         for (int initPos = 0; initPos < init.length; ++initPos)
         {
             final int initValue = init[initPos];
-            final int cBitSelector = 1 << (32 - initValue);
-            final int cValue = c[initValue];
-            a[initPos] = cValue;
-            int cValueBit;
-            if ((cValue & cBitSelector) == 0)
+            final int builderBitSelector = 1 << (32 - initValue);
+            final int builderValue = blockBuilder[initValue];
+            cipherBlock[initPos] = builderValue;
+            int builderValueBit;
+            if ((builderValue & builderBitSelector) == 0)
             {
-                cValueBit = cValue | cBitSelector;
+                builderValueBit = builderValue | builderBitSelector;
                 for (int initValueCounter = initValue - 1; initValueCounter > 0; --initValueCounter)
                 {
-                    final int cValueTemp = c[initValueCounter];
-                    if (cValue != cValueTemp)
+                    final int builderValue2 = blockBuilder[initValueCounter];
+                    if (builderValue != builderValue2)
                         break;
-                    final int cValueTempBitSelector = 1 << (32 - initValueCounter);
-                    if ((cValueTemp & cValueTempBitSelector) == 0)
-                    {
-                        c[initValueCounter] = cValueTempBitSelector | cValueTemp;
-                    }
+                    final int builderValue2BitSelector = 1 << (32 - initValueCounter);
+                    if ((builderValue2 & builderValue2BitSelector) == 0)
+                        blockBuilder[initValueCounter] = builderValue2BitSelector | builderValue2;
                     else
                     {
-                        c[initValueCounter] = c[initValueCounter - 1];
+                        blockBuilder[initValueCounter] = blockBuilder[initValueCounter - 1];
                         break;
                     }
                 }
             }
             else
             {
-                cValueBit = c[initValue + -1];
+                builderValueBit = blockBuilder[initValue + -1];
             }
-            c[initValue] = cValueBit;
+            blockBuilder[initValue] = builderValueBit;
             for (int initValueCounter = initValue + 1; initValueCounter <= 32; ++initValueCounter)
             {
-                if (cValue == c[initValueCounter])
-                {
-                    c[initValueCounter] = cValueBit;
-                }
+                if (builderValue == blockBuilder[initValueCounter])
+                    blockBuilder[initValueCounter] = builderValueBit;
             }
-            int bIndex = 0;
+            int cipherDictIndex = 0;
             for (int initValueCounter = 0; initValueCounter < initValue; ++initValueCounter)
             {
-                int cBitSelector2 = 0x80000000 >>> initValueCounter;
-                if ((cValue & cBitSelector2) == 0)
-                {
-                    bIndex++;
-                }
+                int builderBitSelector2 = 0x80000000 >>> initValueCounter;
+                if ((builderValue & builderBitSelector2) == 0)
+                    cipherDictIndex++;
                 else
                 {
-                    if (b[bIndex] == 0)
-                        b[bIndex] = bIndexTemp;
+                    if (cipherDictionary[cipherDictIndex] == 0)
+                        cipherDictionary[cipherDictIndex] = cipherDictIndexTemp;
 
-                    bIndex = b[bIndex];
+                    cipherDictIndex = cipherDictionary[cipherDictIndex];
                 }
-                if (b.length <= bIndex)
+                if (cipherDictionary.length <= cipherDictIndex)
                 {
-                    final int[] bResized = new int[b.length * 2];
-                    System.arraycopy(b, 0, bResized, 0, b.length);
-                    b = bResized;
+                    final int[] newCipherDict = new int[cipherDictionary.length * 2];
+                    System.arraycopy(cipherDictionary, 0, newCipherDict, 0, cipherDictionary.length);
+                    cipherDictionary = newCipherDict;
                 }
             }
-            b[bIndex] = ~initPos;
-            if (bIndex >= bIndexTemp)
-                bIndexTemp = bIndex + 1;
+            cipherDictionary[cipherDictIndex] = ~initPos;
+            if (cipherDictIndex >= cipherDictIndexTemp)
+                cipherDictIndexTemp = cipherDictIndex + 1;
         }
     }
 
@@ -136,37 +130,37 @@ public class StringEncryption {
         for (int messageIndex = 0; message.length() > messageIndex; ++messageIndex)
         {
             final int messageCharacter = chatBuffer[messageIndex] & 0xff;
-            final int aValue = a[messageCharacter];
+            final int cipherBlockValue = cipherBlock[messageCharacter];
             final int initValue = init[messageCharacter];
 
             int outputByteOffset = outputBitOffset >> 3;
-            int temp = 0x7 & outputBitOffset;
-            encipheredByte &= -temp >> 31;
-            final int outputByteOffset2 = outputByteOffset + ((temp + initValue - 1) >> 3);
+            int cipherBlockShifter = 0x7 & outputBitOffset;
+            encipheredByte &= -cipherBlockShifter >> 31;
+            final int outputByteOffset2 = outputByteOffset + ((cipherBlockShifter + initValue - 1) >> 3);
             outputBitOffset += initValue;
-            temp += 24;
-            encipheredByte |= (aValue >>> temp);
+            cipherBlockShifter += 24;
+            encipheredByte |= (cipherBlockValue >>> cipherBlockShifter);
             outputBuffer[outputByteOffset] = (byte) (encipheredByte);
             if (outputByteOffset2 > outputByteOffset)
             {
                 outputByteOffset++;
-                temp -= 8;
-                outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue >>> temp);
+                cipherBlockShifter -= 8;
+                outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
                 if (outputByteOffset < outputByteOffset2)
                 {
                     outputByteOffset++;
-                    temp -= 8;
-                    outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue >>> temp);
+                    cipherBlockShifter -= 8;
+                    outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
                     if (outputByteOffset2 > outputByteOffset)
                     {
                         outputByteOffset++;
-                        temp -= 8;
-                        outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue >>> temp);
+                        cipherBlockShifter -= 8;
+                        outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
                         if (outputByteOffset2 > outputByteOffset)
                         {
-                            temp -= 8;
+                            cipherBlockShifter -= 8;
                             outputByteOffset++;
-                            outputBuffer[outputByteOffset] = (byte) (encipheredByte = aValue << -temp);
+                            outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue << -cipherBlockShifter);
                         }
                     }
                 }
@@ -178,32 +172,32 @@ public class StringEncryption {
 
     public static String decipher(final NetworkStream m_packetStream, final int messageLength) {
         int bufferIndex = 0;
-        int temp = 0;
-        int bValue;
+        int decipherIndex = 0;
+        int cipherDictValue;
 
         while (bufferIndex < messageLength)
         {
             final byte encipheredByte = m_packetStream.readByte();
-            temp = encipheredByte < 0 ? b[temp] : temp + 1;
+            decipherIndex = encipheredByte < 0 ? cipherDictionary[decipherIndex] : decipherIndex + 1;
 
-            if (0 > (bValue = b[temp]))
+            if (0 > (cipherDictValue = cipherDictionary[decipherIndex]))
             {
-                chatBuffer[bufferIndex++] = (byte) (~bValue);
+                chatBuffer[bufferIndex++] = (byte) (~cipherDictValue);
                 if (bufferIndex >= messageLength)
                     break;
 
-                temp = 0;
+                decipherIndex = 0;
             }
 
             int andVal = 0x40;
             while (andVal > 0) {
-                temp = (encipheredByte & andVal) == 0 ? temp + 1 : b[temp];
-                if ((bValue = b[temp]) < 0) {
-                    chatBuffer[bufferIndex++] = (byte) (~bValue);
+                decipherIndex = (encipheredByte & andVal) == 0 ? decipherIndex + 1 : cipherDictionary[decipherIndex];
+                if ((cipherDictValue = cipherDictionary[decipherIndex]) < 0) {
+                    chatBuffer[bufferIndex++] = (byte) (~cipherDictValue);
                     if (bufferIndex >= messageLength)
                         break;
 
-                    temp = 0;
+                    decipherIndex = 0;
                 }
                 andVal >>= 1;
             }

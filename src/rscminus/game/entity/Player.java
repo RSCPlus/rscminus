@@ -22,7 +22,7 @@ package rscminus.game.entity;
 import rscminus.common.ISAACCipher;
 import rscminus.common.JGameData;
 import rscminus.common.SocketUtil;
-import rscminus.common.StringEncryption;
+import rscminus.common.StringChatCipher;
 import rscminus.game.*;
 import rscminus.game.constants.Game;
 import rscminus.game.data.LoginInfo;
@@ -67,7 +67,7 @@ public class Player extends Entity {
     public static final int OPCODE_WALKTO = 187;
     public static final int OPCODE_SET_APPEARANCE = 235;
     public static final int OPCODE_DROP_ITEM = 246;
-    public static final int OPCODE_PUBLIC_CHAT = 216;
+    public static final int OPCODE_SEND_CHAT_MESSAGE = 216;
 
     // Player update
     private boolean m_updateChat;
@@ -664,13 +664,13 @@ public class Player extends Entity {
                 m_actionSlot.setAction(ActionSlot.ACTION_INVENTORY_DROP);
                 m_actionSlot.setInventorySlot(m_packetStream.readUnsignedShort());
                 break;
-            case OPCODE_PUBLIC_CHAT:
+            case OPCODE_SEND_CHAT_MESSAGE:
                 int messageLength = m_packetStream.readVariableSize();
                 if (messageLength <= 0 || messageLength > 80)
                     break;
-                String message = StringEncryption.decipher(m_packetStream, messageLength);
-                //TODO: Profanity filter
-                StringEncryption.encipher(chatMessage, message);
+                String message = StringChatCipher.decipher(m_packetStream, messageLength);
+                //TODO: Profanity filter, capitalization
+                StringChatCipher.encipher(chatMessage, message);
                 m_updateChat = true;
                 break;
             default:
