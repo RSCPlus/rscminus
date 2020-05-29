@@ -813,7 +813,7 @@ public class Scraper {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.Error("Scraper.sanitizeReplays incomingPackets loop");
+                Logger.Error("Scraper.sanitizeReplays incomingPackets loop during replay " + fname);
             }
         }
 
@@ -889,7 +889,7 @@ public class Scraper {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.Error("Scraper.sanitizeReplays outgoingPackets loop");
+                Logger.Error("Scraper.sanitizeReplays outgoingPackets loop during replay " + fname);
             }
         }
 
