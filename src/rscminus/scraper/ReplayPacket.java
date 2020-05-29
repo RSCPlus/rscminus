@@ -87,8 +87,11 @@ public class ReplayPacket {
     }
 
     public String readPaddedString() {
-        skip(1);
-        return readString();
+        if (readByte() == 0) {
+          return readString();
+        } else {
+          throw new IllegalStateException("Padded String didn't begin with null byte!");
+        }
     }
 
     public String readRSCString() {
