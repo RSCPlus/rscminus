@@ -23,7 +23,7 @@ import rscminus.game.NetworkStream;
 
 import java.util.HashMap;
 
-public class StringChatCipher {
+public class ChatCipher {
 
     //Unicode characters that are mapped to specific byte values
     //The array is for byte->char, the dict is for char->byte
@@ -54,7 +54,7 @@ public class StringChatCipher {
 
     private final static StringBuilder messageBuilder = new StringBuilder();
 
-    public static void init() {
+   public static void init() {
         //Initialize the special character map
         for (int i=0; i < specialCharacters.length; ++i)
             specialCharacterMap.put(specialCharacters[i], (byte)(i - 128));

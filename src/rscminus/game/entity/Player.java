@@ -19,10 +19,7 @@
 
 package rscminus.game.entity;
 
-import rscminus.common.ISAACCipher;
-import rscminus.common.JGameData;
-import rscminus.common.SocketUtil;
-import rscminus.common.StringChatCipher;
+import rscminus.common.*;
 import rscminus.game.*;
 import rscminus.game.constants.Game;
 import rscminus.game.data.LoginInfo;
@@ -668,9 +665,9 @@ public class Player extends Entity {
                 int messageLength = m_packetStream.readVariableSize();
                 if (messageLength <= 0 || messageLength > 80)
                     break;
-                String message = StringChatCipher.decipher(m_packetStream, messageLength);
-                //TODO: Profanity filter, capitalization
-                StringChatCipher.encipher(chatMessage, message);
+                String message = ChatCipher.decipher(m_packetStream, messageLength);
+                message = ChatFilter.filter(message);
+                ChatCipher.encipher(chatMessage, message);
                 m_updateChat = true;
                 break;
             default:

@@ -19,10 +19,10 @@
 
 package rscminus.game;
 
+import rscminus.common.ChatFilter;
 import rscminus.common.Crypto;
 import rscminus.common.JGameData;
 import rscminus.common.Sleep;
-import rscminus.common.StringChatCipher;
 
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
@@ -55,8 +55,9 @@ public class Server implements Runnable {
     public void run() {
         // Initialize rscminus
         Crypto.init();
-        StringChatCipher.init();
         JGameData.init(true);
+        if (!ChatFilter.init())
+            return;
         System.out.println("exponent: " + Crypto.getPublicExponent());
         System.out.println("modulus: " + Crypto.getPublicModulus());
 
