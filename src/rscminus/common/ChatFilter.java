@@ -19,8 +19,6 @@
 
 package rscminus.common;
 
-import java.util.Arrays;
-
 public class ChatFilter {
     private static int[] hashFragments;
     private static char[][] badList;
@@ -35,7 +33,12 @@ public class ChatFilter {
     private static char[] forceUpperChars = new char[]{
        '.', '!', '?'
     } ;
+    private static char[] dot = { 'd', 'o', 't' };
+    private static char[] slash = {'s', 'l', 'a', 's', 'h' };
+    private static boolean censorOn = false;
     public static boolean init() {
+        ChatCipher.init();
+
         JContent filterFile = new JContent();
         if (!filterFile.open("filter2.jag"))
             return false;
@@ -51,8 +54,7 @@ public class ChatFilter {
             return false;
 
         loadFilters(buffFragments, buffBadEnc, buffHostEnc, buffTLDList);
-        ChatCipher.init();
-
+        censorOn = true;
         return true;
     }
     public static void loadFilters(JContentFile fragments, JContentFile bad, JContentFile host, JContentFile tld) {
@@ -119,20 +121,21 @@ public class ChatFilter {
     }
 
     public static String filter(String input) {
-        char inputChars[] = input.toLowerCase().toCharArray();
-        applyDotSlashFilter(inputChars);
-        applyBadwordFilter(inputChars);
-        applyHostFilter(inputChars);
-        applyOrderFilter(inputChars);
-        for (int ignoreIdx = 0; ignoreIdx < ignoreList.length; ignoreIdx++) {
-            for (int inputIgnoreIdx = -1; (inputIgnoreIdx = input.indexOf(ignoreList[ignoreIdx], inputIgnoreIdx + 1)) != -1; ) {
-                char[] ignorewordChars = ignoreList[ignoreIdx].toCharArray();
-                for (int ignorewordIdx = 0; ignorewordIdx < ignorewordChars.length; ignorewordIdx++)
-                    inputChars[ignorewordIdx + inputIgnoreIdx] = ignorewordChars[ignorewordIdx];
+        char[] inputChars = input.toLowerCase().toCharArray();
+        if (censorOn) {
+            applyDotSlashFilter(inputChars);
+            applyBadwordFilter(inputChars);
+            applyHostFilter(inputChars);
+            applyOrderFilter(inputChars);
+            for (int ignoreIdx = 0; ignoreIdx < ignoreList.length; ignoreIdx++) {
+                for (int inputIgnoreIdx = -1; (inputIgnoreIdx = input.indexOf(ignoreList[ignoreIdx], inputIgnoreIdx + 1)) != -1; ) {
+                    char[] ignorewordChars = ignoreList[ignoreIdx].toCharArray();
+                    for (int ignorewordIdx = 0; ignorewordIdx < ignorewordChars.length; ignorewordIdx++)
+                        inputChars[ignorewordIdx + inputIgnoreIdx] = ignorewordChars[ignorewordIdx];
 
+                }
             }
         }
-
         stripLowercase(input.toCharArray(), inputChars);
         toLowercase(inputChars);
 
@@ -201,14 +204,8 @@ public class ChatFilter {
 
     public static void applyDotSlashFilter(char input[]) {
         char input1[] = input.clone();
-        char dot[] = {
-                'd', 'o', 't'
-        };
         applyWordFilter(input1, dot, null);
         char input2[] = input.clone();
-        char slash[] = {
-                's', 'l', 'a', 's', 'h'
-        };
         applyWordFilter(input2, slash, null);
         for (int i = 0; i < tldList.length; i++)
             applyTldFilter(input, input1, input2, tldList[i], tldType[i]);
