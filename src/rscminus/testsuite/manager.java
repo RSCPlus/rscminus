@@ -17,11 +17,19 @@
  * Authors: see <https://github.com/OrN/rscminus>
  */
 
-package testsuite;
+package rscminus.testsuite;
 
-import testsuite.types.unitTest;
-import java.util.ArrayList;
-import java.util.List;
+import rscminus.testsuite.types.unitTest;
+
+import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.stream.Stream;
 
 
 public class manager{
@@ -31,17 +39,21 @@ public class manager{
     private static List<String> testsToRun = new ArrayList<>();
 
     private static Argument[] argumentList = new Argument[] {
-            new Argument("help", "shows all available arguments and their syntax"),
+            new Argument("help", "shows all available arguments (you are viewing this now)"),
+            new Argument("sqlu", "accepts your local sql username. eg -sqlu root"),
+            new Argument("sqlp", "accepts your local sql password. eg -sqlp root"),
             new Argument("runall", "runs all available tests"),
-            new Argument("run", "runs a single test"),
+            new Argument("run", "runs a single test. eg: -run test1 -run test2"),
     };
+
+    private static String testPackage = "rscminus.testsuite.tests.";
 
     public static void main(String[] args) {
         processArguments(args);
 
         if (help) {
             System.out.println("[RSC- Test Suite]");
-            System.out.println("Usage: java -jar rscminus-testsuite.jar [arguments]");
+            System.out.println("Usage: java -jar rscminus-rscminus.testsuite.jar [arguments]");
             System.out.println("Available arguments:");
             for (Argument argument : argumentList)
                 System.out.println(String.format("-%-8s", argument.name) + ": " + argument.explanation);
@@ -50,7 +62,9 @@ public class manager{
                 for (String testName : testsToRun) {
                     System.out.println("------------------------------");
                     try {
-                        Class<?> requestedClass = Class.forName("testsuite.tests.".concat(testName));
+                        Class<?> requestedClass = Class.forName(
+                                testName.startsWith(testPackage) ? testName : testPackage.concat(testName)
+                        );
                         Object requestedObject = requestedClass.newInstance();
                         if (requestedObject instanceof unitTest) {
                             unitTest test = ((unitTest) requestedObject);
@@ -89,6 +103,25 @@ public class manager{
             if (args[argumentIndex].equalsIgnoreCase("-help")) {
                 help = true;
                 return;
+            }
+            else if (args[argumentIndex].equalsIgnoreCase("-runall")) {
+                try {
+                    ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+                    assert classLoader != null;
+                    Enumeration<URL> resources = classLoader.getResources(testPackage.replace('.', '/'));
+                    while (resources.hasMoreElements()) {
+                        URL resource = resources.nextElement();
+                        if (resource.toURI().getScheme().equals("jar")) {
+                            testsToRun.addAll(
+                                findClasses(resource, testPackage)
+                            );
+                        } else {
+                            testsToRun.addAll(
+                                findClasses(new File(resource.getFile()), testPackage)
+                            );
+                        }
+                    }
+                } catch (Exception a) {a.printStackTrace();}
             }
             else if (args[argumentIndex].equalsIgnoreCase("-run"))
                 testsToRun.add(args[++argumentIndex]);
@@ -129,5 +162,35 @@ public class manager{
             this.name = name;
             this.explanation = explanation;
         }
+    }
+    private static List<String> findClasses(URL url, String packageName) throws Exception {
+        List<String> classes = new ArrayList<>();
+        FileSystem fileSystem = FileSystems.newFileSystem(url.toURI(), Collections.emptyMap());
+        Path myPath = fileSystem.getPath(testPackage.replace('.', '/'));
+        Stream<Path> walk = Files.walk(myPath);
+        for (Iterator<Path> it = walk.iterator(); it.hasNext(); ) {
+            String path = it.next().getFileName().toString();
+            if (path.endsWith(".class")) {
+                classes.add(path.substring(0, path.length() - 6));
+            }
+        }
+        return classes;
+    }
+    private static List<String> findClasses(File directory, String packageName) {
+        List<String> classes = new ArrayList<>();
+        if (!directory.exists()) {
+            return classes;
+        }
+        File[] files = directory.listFiles();
+        for (File file : files) {
+            System.out.println(file.getName());
+            if (file.isDirectory()) {
+                assert !file.getName().contains(".");
+                classes.addAll(findClasses(file, packageName + "." + file.getName()));
+            } else if (file.getName().endsWith(".class")) {
+                classes.add(file.getName().substring(0, file.getName().length() - 6));
+            }
+        }
+        return classes;
     }
 }

@@ -17,7 +17,7 @@
  * Authors: see <https://github.com/OrN/rscminus>
  */
 
-package testsuite.types;
+package rscminus.testsuite.types;
 
 public interface unitTest {
     boolean init() throws Exception;

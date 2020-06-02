@@ -17,9 +17,9 @@
  * Authors: see <https://github.com/OrN/rscminus>
  */
 
-package testsuite.types;
+package rscminus.testsuite.types;
 
-import testsuite.manager;
+import rscminus.testsuite.manager;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
