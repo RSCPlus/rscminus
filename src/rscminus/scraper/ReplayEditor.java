@@ -339,7 +339,6 @@ public class ReplayEditor {
                     FileUtil.copyFile(mouseFile,new File(fname + "/mouse.bin.gz"));
                 }
 
-                Scraper.replaysProcessedCount += 1;
                 Scraper.ip_address4 = -1;
                 Scraper.world_num_excluded = 0;
 
@@ -543,7 +542,6 @@ public class ReplayEditor {
                 FileUtil.copyFile(mouseFile,new File(fname + "/mouse.bin.gz"));
             }
 
-            Scraper.replaysProcessedCount += 1;
             Scraper.ip_address4 = -1;
             Scraper.world_num_excluded = 0;
 

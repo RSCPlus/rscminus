@@ -23,6 +23,8 @@ import rscminus.common.Logger;
 import rscminus.common.MathUtil;
 import rscminus.scraper.client.Class11;
 
+import java.math.BigInteger;
+
 public class ReplayPacket {
     public int timestamp;
     public int opcode;
@@ -119,8 +121,13 @@ public class ReplayPacket {
         return ret;
     }
 
-    public int readUnsignedInt() {
-        return (readUnsignedByte() << 24) | (readUnsignedByte() << 16) | (readUnsignedByte() << 8) | readUnsignedByte();
+    public BigInteger readUnsignedLong() {
+        BigInteger bi = BigInteger.valueOf(readUnsignedInt()).shiftLeft(32);
+        return bi.or(BigInteger.valueOf(readUnsignedInt()));
+    }
+
+    public long readUnsignedInt() {
+        return (((long)readUnsignedByte()) << 24) | (readUnsignedByte() << 16) | (readUnsignedByte() << 8) | readUnsignedByte();
     }
 
     public int readUnsignedShort() {
