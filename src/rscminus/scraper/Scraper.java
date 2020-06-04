@@ -30,6 +30,7 @@ import rscminus.scraper.client.Character;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.LinkedList;
 
@@ -42,8 +43,9 @@ public class Scraper {
     private static HashMap<Integer, Integer> sceneryLocs = new HashMap<Integer, Integer>();
     private static HashMap<Integer, Integer> boundaryLocs = new HashMap<Integer, Integer>();
     private static HashMap<Integer, String> m_npcLocCSV = new HashMap<Integer, String>();
+    private static HashMap<Integer, String> m_replayDictionarySQL = new HashMap<Integer, String>();
+    private static HashMap<Integer, String> m_chatSQL = new HashMap<Integer, String>();
     private static HashMap<Integer, String> m_messageSQL = new HashMap<Integer, String>();
-
 
     private static final int SCENERY_BLANK = 65536;
 
@@ -314,15 +316,16 @@ public class Scraper {
         }
     }
 
-    private static void dumpMessages(String fname) {
+    private static void dumpSQLToFile(HashMap<Integer, String> sqlStatements, String identifier, String fname) {
         try {
-            Logger.Info("There's  a whopping " +  (m_messageSQL.size() - 1) + " messages to dump. Please hold.");
+            int size = (sqlStatements.size() - 1);
+            Logger.Info(String.format("@|green There's a whopping %d %s%s to dump. Please hold.|@", size, identifier, size == 1 ? "" : "s"));
             DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(fname)));
-            for (HashMap.Entry<Integer, String> entry : m_messageSQL.entrySet()) {
+            for (HashMap.Entry<Integer, String> entry : sqlStatements.entrySet()) {
                 out.writeBytes(entry.getValue());
             }
             out.close();
-            Logger.Info("Dumped " + (m_messageSQL.size() - 1) + " messages!");
+            Logger.Info(String.format("@|green,intensity_bold Dumped %d %s sql statement%s!|@", size, identifier, size == 1 ? "" : "s"));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -383,7 +386,7 @@ public class Scraper {
             metadata[ReplayEditor.METADATA_FLAGS_OFFSET] |= ReplayEditor.FLAG_SANITIZE_VERSION;
     }
 
-    private static void sanitizeReplay(String fname) {
+    private static void processReplay(String fname) {
         ReplayEditor editor = new ReplayEditor();
         setFlags(editor);
         boolean success = editor.importData(fname);
@@ -403,6 +406,7 @@ public class Scraper {
 
         Logger.Debug(fname);
 
+        int localPID = -1;
         int playerX = -1;
         int playerY = -1;
         int planeX = -1;
@@ -411,15 +415,18 @@ public class Scraper {
         int floorYOffset = -1;
         int length = -1;
 
-        if (Settings.dumpMessages) {
-            m_messageSQL.put(m_messageSQL.size(),
-                    String.format("%s%d', \"%s\");\n",
+        if (Settings.dumpMessages || Settings.dumpChat) {
+            m_replayDictionarySQL.put(m_replayDictionarySQL.size(),
+                    String.format("%s%d', '%s');\n",
                             "INSERT INTO `rscMessages`.`replayDictionary` (`index`, `filePath`) VALUES ('",
                             Scraper.replaysProcessedCount,
-                            fname.replaceFirst(Settings.sanitizePath, "").replaceAll("\"", "\\\"")
+                            fname.replaceFirst(Settings.sanitizePath, "").replaceAll("'", "''")
                     )
             );
         }
+
+        int op234type1EchoCount = 0;
+        int sendPMEchoCount = 0;
 
         // Process incoming packet
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
@@ -432,7 +439,7 @@ public class Scraper {
                         Logger.Info("loginresponse: " + packet.data[0] + " (timestamp: " + packet.timestamp + ")");
                         break;
                     case PacketBuilder.OPCODE_FLOOR_SET:
-                        packet.skip(2);
+                        localPID = packet.readUnsignedShort();
                         planeX = packet.readUnsignedShort();
                         planeY = packet.readUnsignedShort();
                         planeFloor = packet.readUnsignedShort();
@@ -458,12 +465,12 @@ public class Scraper {
                             }
                             m_messageSQL.put(m_messageSQL.size(),
                                     "INSERT INTO `rscMessages`.`SEND_MESSAGE` (`replayIndex`, `timestamp`, `messageType`, `infoContained`, `message`, `sender`, `sender2`, `color`) VALUES " +
-                                            String.format("('%d', '%d', '%d', '%d', \"%s\", '%s', '%s', '%s');\n",
+                                            String.format("('%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s');\n",
                                                     Scraper.replaysProcessedCount,
                                                     packet.timestamp,
                                                     type,
                                                     infoContained,
-                                                    sendMessage.replaceAll("\"", "\\\""),
+                                                    sendMessage.replaceAll("'", "''"),
                                                     sender,
                                                     clan,
                                                     color)
@@ -481,7 +488,7 @@ public class Scraper {
 
                             for (int i = 1; i <= numberOfOptions; i++) {
                                 dialogueOptionsInsert = String.format("%s%s%d%s",dialogueOptionsInsert, ", `choice", i, "`");
-                                dialogueOptionsValues += String.format(", \"%s\"", packet.readPaddedString().replaceAll("\"", "\\\""));
+                                dialogueOptionsValues += String.format(", '%s'", packet.readPaddedString().replaceAll("'", "''"));
                             }
 
                             m_messageSQL.put(m_messageSQL.size(), String.format("%s%s%s%s",
@@ -514,6 +521,19 @@ public class Scraper {
                             } else if (updateType == 1) { // chat
                                 packet.skip(1);
                                 String chatMessage = packet.readRSCString();
+                                if (Settings.dumpChat) {
+                                    m_chatSQL.put(m_chatSQL.size(),
+                                      "INSERT INTO `rscMessages`.`UPDATE_PLAYERS_TYPE_1` (`replayIndex`, `timestamp`, `pid`, `localPlayerMessageCount`, `message`) VALUES " +
+                                          String.format("('%d', '%d', '%d', '%d', '%s');\n",
+                                              Scraper.replaysProcessedCount,
+                                              packet.timestamp,
+                                              pid,
+                                              pid == localPID ? op234type1EchoCount++ : -1,
+                                              chatMessage.replaceAll("'", "''")
+                                          )
+                                    );
+                                }
+
                                 // Strip Chat
                                 if (Settings.sanitizePublicChat) {
                                     int trimSize = packet.tell() - startPosition;
@@ -540,11 +560,11 @@ public class Scraper {
                                 if (Settings.dumpMessages) {
                                     m_messageSQL.put(m_messageSQL.size(),
                                             "INSERT INTO `rscMessages`.`UPDATE_PLAYERS_TYPE_6` (`replayIndex`, `timestamp`, `pid`, `message`) VALUES " +
-                                                    String.format("('%d', '%d', '%d', \"%s\");\n",
+                                                    String.format("('%d', '%d', '%d', '%s');\n",
                                                             Scraper.replaysProcessedCount,
                                                             packet.timestamp,
                                                             pid,
-                                                            message.replaceAll("\"", "\\\"")
+                                                            message.replaceAll("'", "''")
                                                     )
                                     );
                                 }
@@ -605,7 +625,47 @@ public class Scraper {
                         }
                         break;
                     case PacketBuilder.OPCODE_RECV_PM:
+                        if (Settings.dumpChat) {
+                            String recvPMSender1 = packet.readPaddedString(); //sender's name
+                            String recvPMSender2 = packet.readPaddedString(); //sender's name again
+                            Boolean recvPMSenderTwice = recvPMSender1.equals(recvPMSender2);
+                            if (!recvPMSenderTwice) {
+                                Logger.Warn("Sender1 != Sender2 in OPCODE_RECV_PM!");
+                            }
+                            int recvPMModeratorStatus = packet.readByte();
+                            BigInteger recvPMMessageID = packet.readUnsignedLong();
+                            String recvPMMessage = packet.readRSCString();
+
+                            m_chatSQL.put(m_chatSQL.size(),
+                                "INSERT INTO `rscMessages`.`RECEIVE_PM` (`replayIndex`, `timestamp`, `sendersRepeated`, `moderator`, `messageID`, `message`) VALUES " +
+                                    String.format("('%d', '%d', '%s', '%d', '%d', '%s');\n",
+                                        Scraper.replaysProcessedCount,
+                                        packet.timestamp,
+                                        recvPMSenderTwice ? "1" : "0",
+                                        recvPMModeratorStatus,
+                                        recvPMMessageID,
+                                        recvPMMessage.replaceAll("'", "''")
+                                    )
+                            );
+                        }
+
+                        if (Settings.sanitizePrivateChat)
+                            packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
+                        break;
                     case PacketBuilder.OPCODE_SEND_PM:
+                        if (Settings.dumpChat) {
+                            packet.readPaddedString(); //recipient's name
+                            String sendPMMessage = packet.readRSCString();
+                            m_chatSQL.put(m_chatSQL.size(),
+                                "INSERT INTO `rscMessages`.`SEND_PM_SERVER_ECHO` (`replayIndex`, `timestamp`, `messageCount`, `message`) VALUES " +
+                                    String.format("('%d', '%d', '%d', '%s');\n",
+                                        Scraper.replaysProcessedCount,
+                                        packet.timestamp,
+                                        sendPMEchoCount++,
+                                        sendPMMessage.replaceAll("'", "''")
+                                    )
+                            );
+                        }
                         if (Settings.sanitizePrivateChat)
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                         break;
@@ -714,12 +774,12 @@ public class Scraper {
                                     String updateNPCMessage = packet.readRSCString();
                                     m_messageSQL.put(m_messageSQL.size(),
                                             "INSERT INTO `rscMessages`.`UPDATE_NPCS_TYPE_1` (`replayIndex`, `timestamp`, `npcId`, `pidTalkingTo`, `message`) VALUES " +
-                                                    String.format("('%d', '%d', '%d', '%d', \"%s\");\n",
+                                                    String.format("('%d', '%d', '%d', '%d', '%s');\n",
                                                             Scraper.replaysProcessedCount,
                                                             packet.timestamp,
                                                             npcsServer[npcServerIndex].npcId,
                                                             pidTalkingTo,
-                                                            updateNPCMessage.replaceAll("\"", "\\\"")
+                                                            updateNPCMessage.replaceAll("'", "''")
                                                     )
                                     );
                                 }
@@ -813,7 +873,7 @@ public class Scraper {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.Error("Scraper.sanitizeReplays incomingPackets loop during replay " + fname);
+                Logger.Error(String.format("@|red Scraper.processReplays incomingPackets loop during replay %s on opcode %d at timestamp %d|@", fname, packet.opcode, packet.timestamp));
             }
         }
 
@@ -848,6 +908,9 @@ public class Scraper {
             }
         }
 
+        int op216Count = 0;
+        int sendPMCount = 0;
+
         // Process outgoing packets
         LinkedList<ReplayPacket> outgoingPackets = editor.getOutgoingPackets();
         for (ReplayPacket packet : outgoingPackets) {
@@ -857,14 +920,43 @@ public class Scraper {
                     case ReplayEditor.VIRTUAL_OPCODE_CONNECT: // Login
                         Logger.Info("outgoing login (timestamp: " + packet.timestamp + ")");
                         break;
+
                     case 216: // Send chat message
+                        if (Settings.dumpChat) {
+                            String sendChatMessage = packet.readRSCString();
+                            m_chatSQL.put(m_chatSQL.size(),
+                                "INSERT INTO `rscMessages`.`SEND_CHAT` (`replayIndex`, `timestamp`, `pid`, `sendCount`, `message`) VALUES " +
+                                    String.format("('%d', '%d', '%d', '%d', '%s');\n",
+                                        Scraper.replaysProcessedCount,
+                                        packet.timestamp,
+                                        localPID,
+                                        op216Count++,
+                                        sendChatMessage.replaceAll("'", "''")
+                                    )
+                            );
+                        }
                         if (Settings.sanitizePublicChat)
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                         break;
+
                     case 218: // Send private message
+                        if (Settings.dumpChat) {
+                            packet.readPaddedString(); // recipient
+                            String sendPMMessage = packet.readRSCString();
+                            m_chatSQL.put(m_chatSQL.size(),
+                                "INSERT INTO `rscMessages`.`SEND_PM` (`replayIndex`, `timestamp`, `messageCount`, `message`) VALUES " +
+                                    String.format("('%d', '%d', '%d', '%s');\n",
+                                        Scraper.replaysProcessedCount,
+                                        packet.timestamp,
+                                        sendPMCount++,
+                                        sendPMMessage.replaceAll("'", "''")
+                                    )
+                            );
+                        }
                         if (Settings.sanitizePrivateChat)
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                         break;
+
                     case 167: // Remove friend
                     case 195: // Add friend
                     case 241: // Remove ignore
@@ -889,7 +981,7 @@ public class Scraper {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                Logger.Error("Scraper.sanitizeReplays outgoingPackets loop during replay " + fname);
+                Logger.Error(String.format("@|red Scraper.processReplays outgoingPackets loop during replay %s on opcode %d at timestamp %d|@", fname, packet.opcode, packet.timestamp));
             }
         }
 
@@ -915,9 +1007,10 @@ public class Scraper {
             FileUtil.mkdir(new File(outDir).getParent());
             editor.exportPCAP(outDir);
         }
+        Scraper.replaysProcessedCount += 1;
     }
 
-    private static void sanitizeDirectory(String path) {
+    private static void processDirectory(String path) {
         File[] files = new File(path).listFiles();
         for (int i = 0; i < files.length; i++) {
             File f = files[i];
@@ -927,10 +1020,10 @@ public class Scraper {
 
                 if (replay.exists()) {
                     Logger.Info("@|cyan Started sanitizing |@" + replayDirectory);
-                    sanitizeReplay(replayDirectory);
+                    processReplay(replayDirectory);
                     Logger.Info("@|cyan,intensity_bold Finished sanitizing |@" + replayDirectory);
                 } else {
-                    sanitizeDirectory(replayDirectory);
+                    processDirectory(replayDirectory);
                 }
             }
         }
@@ -942,6 +1035,7 @@ public class Scraper {
         System.out.println("\t[OPTIONS] [REPLAY DIRECTORY]");
         System.out.println("options:");
         System.out.println("\t-a\t\t\tAppend client test data to the end of all replays being processed");
+        System.out.println("\t-c\t\t\tDump anonymized Chat and Private Messages SQL file");
         System.out.println("\t-d\t\t\tDump scenery & boundary data to binary files");
         System.out.println("\t-f\t\t\tRemove opcodes related to the friend's list");
         System.out.println("\t-h\t\t\tShow this usage dialog");
@@ -960,10 +1054,14 @@ public class Scraper {
                 case "-a":
                     appendingToReplay = true;
                     break;
+                case "-c":
+                    Settings.dumpChat = true;
+                    Logger.Info("dump chat set");
+                    break;
                 case "-d":
                     Settings.dumpScenery = true;
                     Settings.dumpBoundaries = true;
-                    Logger.Info("dumping stuff");
+                    Logger.Info("dumping scenery & boundaries");
                     break;
                 case "-f":
                     Settings.sanitizeFriendsIgnore = true;
@@ -1045,14 +1143,21 @@ public class Scraper {
 
         File replay = new File(Settings.sanitizePath + "/in.bin.gz");
         if (replay.exists()) {
-            sanitizeReplay(Settings.sanitizePath);
+            processReplay(Settings.sanitizePath);
         } else {
-            sanitizeDirectory(Settings.sanitizePath);
+            processDirectory(Settings.sanitizePath);
         }
         if (Settings.dumpMessages) {
             Logger.Info(String.format("Highest option was: %d", highestOption));
             m_messageSQL.put(m_messageSQL.size(), String.format("/* ----- Highest option was: %d ----- */", highestOption));
-            dumpMessages(Settings.scraperOutputPath + "allMessages.sql");
+            dumpSQLToFile(m_messageSQL, "message", Settings.scraperOutputPath + "allMessages.sql");
+        }
+        if (Settings.dumpChat) {
+            dumpSQLToFile(m_chatSQL, "chat message", Settings.scraperOutputPath + "allChatMessages.sql");
+        }
+
+        if (Settings.dumpMessages || Settings.dumpChat) {
+            dumpSQLToFile(m_replayDictionarySQL, "replay path", Settings.scraperOutputPath + "replayDictionary.sql");
         }
 
         if (Settings.dumpNpcLocs) {
@@ -1095,6 +1200,7 @@ public class Scraper {
                     Settings.dumpBoundaries ||
                     Settings.dumpNpcLocs ||
                     Settings.dumpMessages ||
+                    Settings.dumpChat ||
                     Settings.sanitizeReplays
             ) {
                 strip();
