@@ -21,36 +21,39 @@ package rscminus.testsuite.types;
 
 import rscminus.testsuite.manager;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.sql.*;
 import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class dbTest implements unitTest{
-    protected static String connectionURL = "jdbc:mysql://localhost/?user={0}&password={1}";
-    protected Connection sqlConnection = null;
-    protected Statement sqlStatement = null;
-    protected ResultSet sqlResultSet = null;
+    private static String connectionURL = "jdbc:mysql://localhost/?user={0}&password={1}";
+    private List<Connection> sqlConnections = new ArrayList<>();
+    private List<Statement> sqlStatements = new ArrayList<>();
+
     public boolean init() throws Exception{
         if (manager.sqlUsername == null ||
             manager.sqlPassword == null) {
             System.out.println("This test requires -sqlu, -sqlp arguments");
             return false;
         }
-        sqlConnection = DriverManager.getConnection(
-                MessageFormat.format(connectionURL, manager.sqlUsername, manager.sqlPassword));
-
-        if (sqlConnection == null || sqlConnection.isClosed()) {
-            System.out.println("Could not connect to database.");
-            return false;
-        }
-
         return true;
     }
+
     public void cleanup() {
-        try {sqlResultSet.close();} catch (Exception ignored) {}
-        try {sqlStatement.close();} catch (Exception ignored) {}
-        try {sqlConnection.close();} catch (Exception ignored) {}
+        for (Statement sqlStatement : sqlStatements)
+            try {sqlStatement.close();} catch (Exception ignored) {}
+        for (Connection sqlConnection : sqlConnections)
+            try {sqlConnection.close();} catch (Exception ignored) {}
+    }
+
+    public Statement newStatement(Connection sqlConnection) throws SQLException {
+        if (sqlConnection == null) {
+            sqlConnection = DriverManager.getConnection(MessageFormat.format(connectionURL, manager.sqlUsername, manager.sqlPassword));
+            sqlConnections.add(sqlConnection);
+        }
+        Statement sqlStatement = sqlConnection.createStatement();
+        sqlStatements.add(sqlStatement);
+        return sqlStatement;
     }
 }
