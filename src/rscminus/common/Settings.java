@@ -47,6 +47,7 @@ public class Settings {
   // Scraper Settings
   public static boolean dumpScenery = false;
   public static boolean dumpBoundaries = false;
+  public static boolean dumpChat = false;
   public static boolean dumpMessages = false;
   public static boolean dumpNpcLocs = false;
   public static boolean needNpcCreation = true;
