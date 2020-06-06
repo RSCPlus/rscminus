@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 public class NetworkStream {
+    public static final int BUFFER_SIZE = 5000;
     private ByteBuffer m_byteBuffer;
     private byte[] m_buffer;
     private int m_position;
@@ -37,7 +38,7 @@ public class NetworkStream {
     private int m_packetStart;
 
     public NetworkStream() {
-        m_byteBuffer = ByteBuffer.allocate(5000);
+        m_byteBuffer = ByteBuffer.allocate(BUFFER_SIZE);
         m_buffer = m_byteBuffer.array();
         m_position = 0;
         m_packetStart = 0;
@@ -78,7 +79,7 @@ public class NetworkStream {
         m_position = 0;
     }
 
-    public int getBufferSize() { return m_buffer.length; }
+    public int getAvailable() { return m_buffer.length - m_position; }
 
     public int getPosition() {
         return m_position;
@@ -174,6 +175,13 @@ public class NetworkStream {
         writeString(value);
     }
 
+    public void writeVariableSize(int size) {
+        if (size < 128)
+            writeByte((byte)size);
+        else
+            writeShort((short)(size + 32768));
+    }
+    
     public void readArray(byte array[], int offset, int length) {
         System.arraycopy(m_buffer, m_position, array, offset, length);
         m_position += length;
