@@ -20,6 +20,7 @@
 package rscminus.common;
 
 import rscminus.game.NetworkStream;
+import rscminus.game.entity.player.ChatMessage;
 
 import java.util.HashMap;
 
@@ -31,7 +32,7 @@ public class ChatCipher {
             '\u2030', '\u0160', '\u2039', '\u0152', '?', '\u017d', '?', '?', '\u2018', '\u2019', '\u201c',
             '\u201d', '\u2022', '\u2013', '\u2014', '\u02dc', '\u2122', '\u0161', '\u203a', '\u0153', '?',
             '\u017e', '\u0178' };
-    private final static HashMap<Character, Byte> specialCharacterMap = new HashMap<>();
+    private final static HashMap<Character, Character> specialCharacterMap = new HashMap<>();
 
     //Used to build the cipher blocks. Copied from the client.
     private final static byte[] init = new byte[] { 22, 22, 22, 22, 22, 22, 21, 22, 22, 20, 22, 22, 22, 21, 22, 22,
@@ -50,14 +51,14 @@ public class ChatCipher {
     private static int[] cipherDictionary = new int[8];
 
     //Used for both enciphering and deciphering chat
-    private static final byte[] chatBuffer = new byte[256];
+    private static final char[] chatBuffer = new char[5096];
 
     private final static StringBuilder messageBuilder = new StringBuilder();
 
    public static void init() {
         //Initialize the special character map
         for (int i=0; i < specialCharacters.length; ++i)
-            specialCharacterMap.put(specialCharacters[i], (byte)(i - 128));
+            specialCharacterMap.put(specialCharacters[i], (char)(i - 128));
 
         //Initialize cipher blocks
         final int[] blockBuilder = new int[33];
@@ -123,10 +124,10 @@ public class ChatCipher {
         }
     }
 
-    public static void encipher(byte[] outputBuffer, String message) {
+    public static void encipher(String message, ChatMessage chatMessage) {
         convertMessageToBytes(message);
         int encipheredByte = 0;
-        int outputBitOffset = 16;
+        int outputBitOffset = 0;
         for (int messageIndex = 0; message.length() > messageIndex; ++messageIndex)
         {
             final int messageCharacter = chatBuffer[messageIndex] & 0xff;
@@ -140,50 +141,52 @@ public class ChatCipher {
             outputBitOffset += initValue;
             cipherBlockShifter += 24;
             encipheredByte |= (cipherBlockValue >>> cipherBlockShifter);
-            outputBuffer[outputByteOffset] = (byte) (encipheredByte);
+            chatMessage.messageBuffer[outputByteOffset] = (byte) (encipheredByte);
             if (outputByteOffset2 > outputByteOffset)
             {
                 outputByteOffset++;
                 cipherBlockShifter -= 8;
-                outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
+                chatMessage.messageBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
                 if (outputByteOffset < outputByteOffset2)
                 {
                     outputByteOffset++;
                     cipherBlockShifter -= 8;
-                    outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
+                    chatMessage.messageBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
                     if (outputByteOffset2 > outputByteOffset)
                     {
                         outputByteOffset++;
                         cipherBlockShifter -= 8;
-                        outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
+                        chatMessage.messageBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue >>> cipherBlockShifter);
                         if (outputByteOffset2 > outputByteOffset)
                         {
                             cipherBlockShifter -= 8;
                             outputByteOffset++;
-                            outputBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue << -cipherBlockShifter);
+                            chatMessage.messageBuffer[outputByteOffset] = (byte) (encipheredByte = cipherBlockValue << -cipherBlockShifter);
                         }
                     }
                 }
             }
         }
-        outputBuffer[0] = (byte)(((outputBitOffset + 7) >> 3) + -1);
-        outputBuffer[1] = (byte)message.length();
+        chatMessage.decipheredLength = message.length();
+        chatMessage.encipheredLength = (((outputBitOffset + 7) >> 3));
     }
 
-    public static String decipher(final NetworkStream m_packetStream, final int messageLength) {
+    public static String decipher(final NetworkStream m_packetStream) {
+        int decipheredLength = m_packetStream.readVariableSize();
+
         int bufferIndex = 0;
         int decipherIndex = 0;
         int cipherDictValue;
 
-        while (bufferIndex < messageLength)
+        while (bufferIndex < decipheredLength && m_packetStream.getAvailable() > 0)
         {
             final byte encipheredByte = m_packetStream.readByte();
             decipherIndex = encipheredByte < 0 ? cipherDictionary[decipherIndex] : decipherIndex + 1;
 
             if (0 > (cipherDictValue = cipherDictionary[decipherIndex]))
             {
-                chatBuffer[bufferIndex++] = (byte) (~cipherDictValue);
-                if (bufferIndex >= messageLength)
+                chatBuffer[bufferIndex++] =  (char)(~cipherDictValue);
+                if (bufferIndex >= decipheredLength)
                     break;
 
                 decipherIndex = 0;
@@ -193,8 +196,8 @@ public class ChatCipher {
             while (andVal > 0) {
                 decipherIndex = (encipheredByte & andVal) == 0 ? decipherIndex + 1 : cipherDictionary[decipherIndex];
                 if ((cipherDictValue = cipherDictionary[decipherIndex]) < 0) {
-                    chatBuffer[bufferIndex++] = (byte) (~cipherDictValue);
-                    if (bufferIndex >= messageLength)
+                    chatBuffer[bufferIndex++] = (char)(~cipherDictValue);
+                    if (bufferIndex >= decipheredLength)
                         break;
 
                     decipherIndex = 0;
@@ -203,28 +206,9 @@ public class ChatCipher {
             }
         }
 
-        return buildMessage(messageLength);
-    }
-
-    public static void convertMessageToBytes(CharSequence charSequence) {
-        for (int messageIndex = 0; messageIndex < charSequence.length() ; ++messageIndex)
-        {
-            final char c = charSequence.charAt(messageIndex);
-            if ((('\0' >= c) || ('\u0080' <= c)) && (('\u00a0' > c) || ('\u00ff' < c)))
-            {
-                if (specialCharacterMap.containsKey(c))
-                    chatBuffer[messageIndex] = specialCharacterMap.get(c);
-                else
-                    chatBuffer[messageIndex] = 63;
-            } else
-                chatBuffer[messageIndex] = (byte)c;
-        }
-    }
-
-    public static String buildMessage(int messageLength) {
         messageBuilder.setLength(0);
-
-        for (int bufferIndex = 0; bufferIndex < messageLength; ++bufferIndex)
+        //Swap bytes for unicode characters
+        for (bufferIndex = 0; bufferIndex < decipheredLength; ++bufferIndex)
         {
             int bufferValue = chatBuffer[bufferIndex] & 0xFF;
             if (bufferValue != 0)
@@ -235,7 +219,17 @@ public class ChatCipher {
                 messageBuilder.append((char)bufferValue);
             }
         }
-
         return messageBuilder.toString();
+    }
+
+    public static void convertMessageToBytes(CharSequence charSequence) {
+        for (int messageIndex = 0; messageIndex < charSequence.length() ; ++messageIndex)
+        {
+            final char c = charSequence.charAt(messageIndex);
+            if ((('\0' >= c) || ('\u0080' <= c)) && (('\u00a0' > c) || ('\u00ff' < c)))
+                chatBuffer[messageIndex] = specialCharacterMap.getOrDefault(c, '?');
+            else
+                chatBuffer[messageIndex] = c;
+        }
     }
 }

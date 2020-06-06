@@ -317,7 +317,11 @@ public class PacketBuilder {
         stream.writeUnsignedByte(1); // Update type
         //TODO: Implement MOD status
         stream.writeUnsignedByte(0); // Mod status
-        stream.writeArray(player.chatMessage, 1, player.chatMessage[0] & 0xFF);
+        stream.writeVariableSize(player.chatMessage.decipheredLength);
+        int sizeToWrite = player.chatMessage.encipheredLength;
+        if (stream.getAvailable() < sizeToWrite)
+            sizeToWrite = stream.getAvailable();
+        stream.writeArray(player.chatMessage.messageBuffer, 0, sizeToWrite);
         ++m_count;
     }
 

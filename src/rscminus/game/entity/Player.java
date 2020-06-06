@@ -25,6 +25,7 @@ import rscminus.game.constants.Game;
 import rscminus.game.data.LoginInfo;
 import rscminus.game.data.SaveInfo;
 import rscminus.game.entity.player.ActionSlot;
+import rscminus.game.entity.player.ChatMessage;
 import rscminus.game.entity.player.WalkingQueue;
 import rscminus.game.world.ViewRegion;
 
@@ -81,8 +82,7 @@ public class Player extends Entity {
     private boolean m_loggedIn;
     private boolean m_loggedOut;
     private WalkingQueue m_walkingQueue;
-
-    public byte[] chatMessage = new byte[256];
+    public ChatMessage chatMessage = new ChatMessage();
 
     public Player(int index, PlayerManager playerManager, WorldManager worldManager) {
         m_index = index;
@@ -662,12 +662,12 @@ public class Player extends Entity {
                 m_actionSlot.setInventorySlot(m_packetStream.readUnsignedShort());
                 break;
             case OPCODE_SEND_CHAT_MESSAGE:
-                int messageLength = m_packetStream.readVariableSize();
-                if (messageLength <= 0 || messageLength > 80)
+                //Check if the user already has a message queued
+                if (m_updateChat)
                     break;
-                String message = ChatCipher.decipher(m_packetStream, messageLength);
-                message = ChatFilter.filter(message);
-                ChatCipher.encipher(chatMessage, message);
+                String decipheredMessage = ChatCipher.decipher(m_packetStream);
+                decipheredMessage = ChatFilter.filter(decipheredMessage);
+                ChatCipher.encipher(decipheredMessage, chatMessage);
                 m_updateChat = true;
                 break;
             default:
