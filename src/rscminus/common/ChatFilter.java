@@ -20,6 +20,9 @@
 package rscminus.common;
 
 public class ChatFilter {
+    /**
+     * Censor data loaded from the filter file
+     */
     private static int[] hashFragments;
     private static char[][] badList;
     private static byte[][][] badCharIds;
@@ -27,18 +30,36 @@ public class ChatFilter {
     private static byte[][][] hostCharIds;
     private static char[][] tldList;
     private static int[] tldType;
+
+    /**
+     * Words that should circumvent the censor
+     */
     private static String[] ignoreList = {
             "cook", "cook's", "cooks", "seeks", "sheet"
     };
-    private static char[] forceUpperChars = new char[]{
-       '.', '!', '?'
-    } ;
+
+    /**
+     * Letters that appear directly after these chars are forced to be capitalized
+     */
+    private static char[] forceUpperChars = new char[]{'.', '!', '?'} ;
+
+    /**
+     * Used for the URL filter
+     */
     private static char[] dot = { 'd', 'o', 't' };
     private static char[] slash = {'s', 'l', 'a', 's', 'h' };
-    private static boolean censorOn = false;
-    public static boolean init() {
-        ChatCipher.init();
 
+    /**
+     * Dictates if the censor should operate. Even if it is off,
+     * capitalization will still be checked
+     */
+    private static boolean censorOn = false;
+
+    /**
+     * Loads the censor list from file
+     * @return boolean depending on success of loading
+     */
+    public static boolean init() {
         JContent filterFile = new JContent();
         if (!filterFile.open("filter2.jag"))
             return false;
@@ -54,23 +75,36 @@ public class ChatFilter {
             return false;
 
         loadFilters(buffFragments, buffBadEnc, buffHostEnc, buffTLDList);
-        censorOn = true;
+        enable();
         return true;
     }
-    public static void loadFilters(JContentFile fragments, JContentFile bad, JContentFile host, JContentFile tld) {
+
+    /**
+     * Controls the censor flag
+     */
+    public static void enable() { censorOn = true; }
+    public static void disable() { censorOn = false; }
+
+    /**
+     * Populates class arrays from file
+     */
+    private static void loadFilters(JContentFile fragments, JContentFile bad, JContentFile host, JContentFile tld) {
         loadBad(bad);
         loadHost(host);
         loadFragments(fragments);
         loadTld(tld);
     }
 
-    public static void loadTld(JContentFile buffer) {
+    /**
+     * Populates tldList, tldType
+     */
+    private static void loadTld(JContentFile buffer) {
         int wordcount = buffer.readUnsignedInt();
         tldList = new char[wordcount][];
         tldType = new int[wordcount];
         for (int idx = 0; idx < wordcount; idx++) {
             tldType[idx] = buffer.readUnsignedByte();
-            char ac[] = new char[buffer.readUnsignedByte()];
+            char[] ac = new char[buffer.readUnsignedByte()];
             for (int k = 0; k < ac.length; k++)
                 ac[k] = (char) buffer.readUnsignedByte();
 
@@ -79,36 +113,47 @@ public class ChatFilter {
 
     }
 
-    public static void loadBad(JContentFile buffer) {
+    /**
+     * Populates badList, badCharIds
+     */
+    private static void loadBad(JContentFile buffer) {
         int wordcount = buffer.readUnsignedInt();
         badList = new char[wordcount][];
         badCharIds = new byte[wordcount][][];
         readJContentFile(buffer, badList, badCharIds);
     }
 
-    public static void loadHost(JContentFile buffer) {
+    /**
+     * Populates hostList, hostCharIds
+     */
+    private static void loadHost(JContentFile buffer) {
         int wordcount = buffer.readUnsignedInt();
         hostList = new char[wordcount][];
         hostCharIds = new byte[wordcount][][];
         readJContentFile(buffer, hostList, hostCharIds);
     }
 
-    public static void loadFragments(JContentFile buffer) {
+    /**
+     * Populates hashFragments
+     */
+    private static void loadFragments(JContentFile buffer) {
         hashFragments = new int[buffer.readUnsignedInt()];
         for (int i = 0; i < hashFragments.length; i++) {
             hashFragments[i] = buffer.readUnsignedShort();
         }
-
     }
 
-    public static void readJContentFile(JContentFile buffer, char wordList[][], byte charIds[][][]) {
+    /**
+     * Parses the sub-files within the filter file
+     */
+    private static void readJContentFile(JContentFile buffer, char[][] wordList, byte[][][] charIds) {
         for (int i = 0; i < wordList.length; i++) {
-            char currentWord[] = new char[buffer.readUnsignedByte()];
+            char[] currentWord = new char[buffer.readUnsignedByte()];
             for (int j = 0; j < currentWord.length; j++)
                 currentWord[j] = (char) buffer.readUnsignedByte();
 
             wordList[i] = currentWord;
-            byte ids[][] = new byte[buffer.readUnsignedInt()][2];
+            byte[][] ids = new byte[buffer.readUnsignedInt()][2];
             for (int j = 0; j < ids.length; j++) {
                 ids[j][0] = (byte) buffer.readUnsignedByte();
                 ids[j][1] = (byte) buffer.readUnsignedByte();
@@ -117,9 +162,13 @@ public class ChatFilter {
             if (ids.length > 0)
                 charIds[i] = ids;
         }
-
     }
 
+    /**
+     * Words that should circumvent the censor
+     * @param input message typed by the user
+     * @return string with filtered message
+     */
     public static String filter(String input) {
         char[] inputChars = input.toLowerCase().toCharArray();
         if (censorOn) {
@@ -142,14 +191,14 @@ public class ChatFilter {
         return new String(inputChars);
     }
 
-    public static void stripLowercase(char input[], char output[]) {
+    private static void stripLowercase(char[] input, char[] output) {
         for (int i = 0; i < input.length; i++)
             if (output[i] != '*' && isUppercase(input[i]))
                 output[i] = input[i];
 
     }
 
-    public static void toLowercase(char input[]) {
+    private static void toLowercase(char[] input) {
         boolean force = true;
         boolean optional = false;
         for (int i = 0; i < input.length; i++) {
@@ -187,7 +236,7 @@ public class ChatFilter {
 
     }
 
-    public static void applyBadwordFilter(char input[]) {
+    private static void applyBadwordFilter(char[] input) {
         for (int i = 0; i < 2; i++) {// why lol
             for (int j = badList.length - 1; j >= 0; j--)
                 applyWordFilter(input, badList[j], badCharIds[j]);
@@ -196,23 +245,23 @@ public class ChatFilter {
 
     }
 
-    public static void applyHostFilter(char input[]) {
+    public static void applyHostFilter(char[] input) {
         for (int i = hostList.length - 1; i >= 0; i--)
             applyWordFilter(input, hostList[i], hostCharIds[i]);
 
     }
 
-    public static void applyDotSlashFilter(char input[]) {
-        char input1[] = input.clone();
+    private static void applyDotSlashFilter(char[] input) {
+        char[] input1 = input.clone();
         applyWordFilter(input1, dot, null);
-        char input2[] = input.clone();
+        char[] input2 = input.clone();
         applyWordFilter(input2, slash, null);
         for (int i = 0; i < tldList.length; i++)
             applyTldFilter(input, input1, input2, tldList[i], tldType[i]);
 
     }
 
-    public static void applyTldFilter(char input[], char input1[], char input2[], char tld[], int type) {
+    private static void applyTldFilter(char[] input, char[] input1, char[] input2, char[] tld, int type) {
         if (tld.length > input.length)
             return;
         for (int charIndex = 0; charIndex <= input.length - tld.length; charIndex++) {
@@ -313,7 +362,7 @@ public class ChatFilter {
         }
     }
 
-    public static int getAsteriskCount(char input[], char input1[], int len) {
+    private static int getAsteriskCount(char[] input, char[] input1, int len) {
         if (len == 0)
             return 2;
         for (int j = len - 1; j >= 0; j--) {
@@ -336,7 +385,7 @@ public class ChatFilter {
         return isSpecial(input[len - 1]) ? 1 : 0;
     }
 
-    public static int getAsteriskCount2(char input[], char input1[], int len) {
+    private static int getAsteriskCount2(char[] input, char[] input1, int len) {
         if (len + 1 == input.length)
             return 2;
         for (int j = len + 1; j < input.length; j++) {
@@ -359,7 +408,7 @@ public class ChatFilter {
         return isSpecial(input[len + 1]) ? 1 : 0;
     }
 
-    public static void applyWordFilter(char input[], char wordlist[], byte charIds[][]) {
+    private static void applyWordFilter(char[] input, char[] wordlist, byte[][] charIds) {
         if (wordlist.length > input.length)
             return;
         for (int charIndex = 0; charIndex <= input.length - wordlist.length; charIndex++) {
@@ -416,7 +465,7 @@ public class ChatFilter {
                             j1 = charIndex;
                         for (; !flag4 && j1 < inputCharCount; j1++)
                             if (j1 >= 0 && (!isSpecial(input[j1]) || input[j1] == '\'')) {
-                                char ac2[] = new char[3];
+                                char[] ac2 = new char[3];
                                 int k1;
                                 for (k1 = 0; k1 < 3; k1++) {
                                     if (j1 + k1 >= input.length || isSpecial(input[j1 + k1]) && input[j1 + k1] != '\'')
@@ -447,7 +496,7 @@ public class ChatFilter {
 
     }
 
-    public static boolean compareCharIds(byte charIdData[][], byte prevCharId, byte curCharId) {
+    private static boolean compareCharIds(byte[][] charIdData, byte prevCharId, byte curCharId) {
         int first = 0;
         if (charIdData[first][0] == prevCharId && charIdData[first][1] == curCharId)
             return true;
@@ -627,7 +676,7 @@ public class ChatFilter {
             return 27;
     }
 
-    public static void applyOrderFilter(char input[]) {
+    public static void applyOrderFilter(char[] input) {
         int digitIndex = 0;
         int fromIndex = 0;
         int k = 0;
@@ -660,7 +709,7 @@ public class ChatFilter {
         }
     }
 
-    public static int indexOfDigit(char input[], int fromIndex) {
+    public static int indexOfDigit(char[] input, int fromIndex) {
         for (int i = fromIndex; i < input.length && i >= 0; i++)
             if (input[i] >= '0' && input[i] <= '9')
                 return i;
@@ -668,7 +717,7 @@ public class ChatFilter {
         return -1;
     }
 
-    public static int indexOfNonDigit(char input[], int fromIndex) {
+    public static int indexOfNonDigit(char[] input, int fromIndex) {
         for (int i = fromIndex; i < input.length && i >= 0; i++)
             if (input[i] < '0' || input[i] > '9')
                 return i;
@@ -702,7 +751,7 @@ public class ChatFilter {
         return c >= 'A' && c <= 'Z';
     }
 
-    public static boolean containsFragmentHashes(char input[]) {
+    public static boolean containsFragmentHashes(char[] input) {
         boolean notNum = true;
         for (int i = 0; i < input.length; i++)
             if (!isDigit(input[i]) && input[i] != 0)
@@ -731,7 +780,7 @@ public class ChatFilter {
      * @param word
      * @return
      */
-    public static int word2hash(char word[]) {
+    public static int word2hash(char[] word) {
         if (word.length > 6)
             return 0;
         int hash = 0;
@@ -756,9 +805,7 @@ public class ChatFilter {
             return false;
 
         if (message[pos] == '@') {
-            if (message[pos + 4] == '@') {
-                return true;
-            }
+            return message[pos + 4] == '@';
         }
         return false;
     }
