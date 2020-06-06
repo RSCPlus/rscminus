@@ -50,10 +50,11 @@ public class Server implements Runnable {
     }
 
     public void run() {
-        // Initialize rscminus
         Crypto.init();
         JGameData.init(true);
-        if (!ChatFilter.init()) { Logger.Warn("Unable to find chat filter list"); }
+        ChatCipher.init();
+        if (!ChatFilter.init()) { Logger.Warn("Chat censor init failed"); }
+
         System.out.println("exponent: " + Crypto.getPublicExponent());
         System.out.println("modulus: " + Crypto.getPublicModulus());
 
@@ -71,7 +72,6 @@ public class Server implements Runnable {
             m_running = false;
             e.printStackTrace();
         }
-
         System.out.println("Server started");
 
         m_tickManager.reset();
