@@ -14,7 +14,7 @@
         <property name="jar.name.scraper" value="${ant.project.name}-scraper.jar" />
         <property name="jar.file.scraper" value="${dist.dir}/${jar.name.scraper}" />
 
-        <property name="jar.main-class.testsuite" value="testsuite.manager" />
+        <property name="jar.main-class.testsuite" value="rscminus.testsuite.TestManager" />
         <property name="jar.name.testsuite" value="${ant.project.name}-testsuite.jar" />
         <property name="jar.file.testsuite" value="${dist.dir}/${jar.name.testsuite}" />
 

@@ -181,7 +181,7 @@ public class NetworkStream {
         else
             writeShort((short)(size + 32768));
     }
-    
+
     public void readArray(byte array[], int offset, int length) {
         System.arraycopy(m_buffer, m_position, array, offset, length);
         m_position += length;
