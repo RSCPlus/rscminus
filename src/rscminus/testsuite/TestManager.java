@@ -19,11 +19,10 @@
 
 package rscminus.testsuite;
 
-import rscminus.testsuite.types.unitTest;
+import rscminus.testsuite.types.UnitTest;
 
 import java.io.File;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -32,7 +31,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 
-public class manager{
+public class TestManager {
     private static boolean help = false;
     public static String sqlUsername = null;
     public static String sqlPassword = null;
@@ -50,7 +49,6 @@ public class manager{
 
     public static void main(String[] args) {
         processArguments(args);
-
         if (help) {
             System.out.println("[RSC- Test Suite]");
             System.out.println("Usage: java -jar rscminus-rscminus.testsuite.jar [arguments]");
@@ -66,13 +64,13 @@ public class manager{
                                 testName.startsWith(testPackage) ? testName : testPackage.concat(testName)
                         );
                         Object requestedObject = requestedClass.newInstance();
-                        if (requestedObject instanceof unitTest) {
-                            unitTest test = ((unitTest) requestedObject);
+                        if (requestedObject instanceof UnitTest) {
+                            UnitTest test = ((UnitTest) requestedObject);
                             try {
                                 System.out.println(testName.concat(" found. Initialising..."));
-                                if (((unitTest) requestedObject).init()) {
+                                if (((UnitTest) requestedObject).init()) {
                                     System.out.println("Complete. Running ...");
-                                    if (((unitTest) requestedObject).run()) {
+                                    if (((UnitTest) requestedObject).run()) {
                                         System.out.println(testName.concat(" passed"));
                                     } else
                                         System.out.println(testName.concat(" failed"));

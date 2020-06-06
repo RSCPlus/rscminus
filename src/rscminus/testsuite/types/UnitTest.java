@@ -19,7 +19,7 @@
 
 package rscminus.testsuite.types;
 
-public interface unitTest {
+public interface UnitTest {
     boolean init() throws Exception;
     boolean run() throws Exception;
     void cleanup() throws Exception;

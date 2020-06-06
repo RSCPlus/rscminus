@@ -19,21 +19,21 @@
 
 package rscminus.testsuite.types;
 
-import rscminus.testsuite.manager;
+import rscminus.testsuite.TestManager;
 
 import java.sql.*;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class dbTest implements unitTest{
+public abstract class DBTest implements UnitTest {
     private static String connectionURL = "jdbc:mysql://localhost/?user={0}&password={1}";
     private List<Connection> sqlConnections = new ArrayList<>();
     private List<Statement> sqlStatements = new ArrayList<>();
 
     public boolean init() throws Exception{
-        if (manager.sqlUsername == null ||
-            manager.sqlPassword == null) {
+        if (TestManager.sqlUsername == null ||
+            TestManager.sqlPassword == null) {
             System.out.println("This test requires -sqlu, -sqlp arguments");
             return false;
         }
@@ -49,7 +49,7 @@ public abstract class dbTest implements unitTest{
 
     public Statement newStatement(Connection sqlConnection) throws SQLException {
         if (sqlConnection == null) {
-            sqlConnection = DriverManager.getConnection(MessageFormat.format(connectionURL, manager.sqlUsername, manager.sqlPassword));
+            sqlConnection = DriverManager.getConnection(MessageFormat.format(connectionURL, TestManager.sqlUsername, TestManager.sqlPassword));
             sqlConnections.add(sqlConnection);
         }
         Statement sqlStatement = sqlConnection.createStatement();
