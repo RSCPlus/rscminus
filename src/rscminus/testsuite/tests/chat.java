@@ -54,7 +54,7 @@ public class chat extends DBTest {
         Statement receiveChatStatement = newStatement(null);
         Statement sendChatStatement = newStatement(null);
         ResultSet receiveChatResults = receiveChatStatement.executeQuery(
-                "SELECT * FROM `rscChat`.`update_players_type_1` WHERE `pid` = 0 ORDER BY `replayIndex` ASC, `timestamp` ASC"
+                "SELECT * FROM `rscChat`.`update_players_type_1` ORDER BY `replayIndex` ASC, `timestamp` ASC"
         );
         ResultSet sendChatResults = sendChatStatement.executeQuery(
                 "SELECT * FROM `rscChat`.`send_chat` ORDER BY `replayIndex` ASC, `timestamp` ASC"
@@ -67,8 +67,8 @@ public class chat extends DBTest {
                 receiveChatResults.previous();
                 continue;
             }
-            String sentMessage = sendChatResults.getString(5);
-            String receivedMessage = receiveChatResults.getString(5);
+            String sentMessage = sendChatResults.getString(4);
+            String receivedMessage = receiveChatResults.getString(4);
             if (sentMessage.length() != receivedMessage.length()) {
                 System.out.println("Skipped message: ".concat(sendChatResults.getInt(1) + " | ".concat(String.valueOf(receiveChatResults.getInt(1)))));
                 receiveChatResults.previous();
