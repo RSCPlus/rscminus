@@ -66,6 +66,9 @@ public class ChatCipher {
 
     private final static StringBuilder messageBuilder = new StringBuilder();
 
+    /**
+     * Builds the arrays needed by the algorithms
+     */
    public static void init() {
         //Initialize the special character map
         for (int i=0; i < specialCharacters.length; ++i)
@@ -135,6 +138,11 @@ public class ChatCipher {
         }
     }
 
+    /**
+     * Converts a string message into an encoded byte array
+     * @param message message to be encoded
+     * @param chatMessage players' chat message buffer
+     */
     public static void encipher(String message, ChatMessage chatMessage) {
         convertMessageToBytes(message);
         int encipheredByte = 0;
@@ -182,6 +190,11 @@ public class ChatCipher {
         chatMessage.encipheredLength = (((outputBitOffset + 7) >> 3));
     }
 
+    /**
+     * Reads an enciphered message from a network stream
+     * @param m_packetStream network stream containing the message
+     * @return decoded String containing the deciphered message
+     */
     public static String decipher(final NetworkStream m_packetStream) {
         int decipheredLength = m_packetStream.readVariableSize();
 
@@ -233,6 +246,11 @@ public class ChatCipher {
         return messageBuilder.toString();
     }
 
+    /**
+     * Converts a String message into a char array and
+     * replaces mapped unicode characters with the proper char
+     * @param charSequence Message to convert. Gets stored in ChatCipher.chatBuffer
+     */
     public static void convertMessageToBytes(CharSequence charSequence) {
         for (int messageIndex = 0; messageIndex < charSequence.length() ; ++messageIndex)
         {

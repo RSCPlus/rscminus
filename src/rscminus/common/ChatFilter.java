@@ -17,6 +17,10 @@
  * Authors: see <https://github.com/OrN/rscminus>
  */
 
+/**
+ * Credit to Isaac Exemplar for the majority of this files' refactoring
+ */
+
 package rscminus.common;
 
 public class ChatFilter {
@@ -115,6 +119,7 @@ public class ChatFilter {
 
     /**
      * Populates badList, badCharIds
+     * Curse words
      */
     private static void loadBad(JContentFile buffer) {
         int wordcount = buffer.readUnsignedInt();
@@ -125,6 +130,7 @@ public class ChatFilter {
 
     /**
      * Populates hostList, hostCharIds
+     * URLs
      */
     private static void loadHost(JContentFile buffer) {
         int wordcount = buffer.readUnsignedInt();
@@ -165,7 +171,7 @@ public class ChatFilter {
     }
 
     /**
-     * Words that should circumvent the censor
+     * Main filter function. Applies censoring, if enabled, and capitalization formatting
      * @param input message typed by the user
      * @return string with filtered message
      */
@@ -191,13 +197,21 @@ public class ChatFilter {
         return new String(inputChars);
     }
 
+    /**
+     * Sets all output chars to uppercase if they are uppercase in the input string
+     * @param input
+     * @param output
+     */
     private static void stripLowercase(char[] input, char[] output) {
         for (int i = 0; i < input.length; i++)
             if (output[i] != '*' && isUppercase(input[i]))
                 output[i] = input[i];
-
     }
 
+    /**
+     * Applies the capitalization filter
+     * @param input
+     */
     private static void toLowercase(char[] input) {
         boolean force = true;
         boolean optional = false;
@@ -236,21 +250,34 @@ public class ChatFilter {
 
     }
 
+    /**
+     * Removes profanity from a message. The censored word list is
+     * loaded in ChatFilter.init()
+     * @param input
+     */
     private static void applyBadwordFilter(char[] input) {
-        for (int i = 0; i < 2; i++) {// why lol
+        for (int i = 0; i < 2; i++) {
             for (int j = badList.length - 1; j >= 0; j--)
                 applyWordFilter(input, badList[j], badCharIds[j]);
 
         }
-
     }
 
+    /**
+     * Removes specific URLs from a message. The URL list is
+     * loaded in ChatFilter.init()
+     * @param input
+     */
     public static void applyHostFilter(char[] input) {
         for (int i = hostList.length - 1; i >= 0; i--)
             applyWordFilter(input, hostList[i], hostCharIds[i]);
-
     }
 
+    /**
+     * Removes "dot" & "slash", which are typically attempts to get around
+     * URL filter
+     * @param input
+     */
     private static void applyDotSlashFilter(char[] input) {
         char[] input1 = input.clone();
         applyWordFilter(input1, dot, null);
@@ -261,6 +288,14 @@ public class ChatFilter {
 
     }
 
+    /**
+     *
+     * @param input
+     * @param input1
+     * @param input2
+     * @param tld
+     * @param type
+     */
     private static void applyTldFilter(char[] input, char[] input1, char[] input2, char[] tld, int type) {
         if (tld.length > input.length)
             return;
@@ -362,6 +397,14 @@ public class ChatFilter {
         }
     }
 
+    /**
+     *
+     *
+     * @param input
+     * @param input1
+     * @param len
+     * @return
+     */
     private static int getAsteriskCount(char[] input, char[] input1, int len) {
         if (len == 0)
             return 2;
@@ -385,6 +428,13 @@ public class ChatFilter {
         return isSpecial(input[len - 1]) ? 1 : 0;
     }
 
+    /**
+     *
+     * @param input
+     * @param input1
+     * @param len
+     * @return
+     */
     private static int getAsteriskCount2(char[] input, char[] input1, int len) {
         if (len + 1 == input.length)
             return 2;
@@ -408,6 +458,12 @@ public class ChatFilter {
         return isSpecial(input[len + 1]) ? 1 : 0;
     }
 
+    /**
+     *
+     * @param input
+     * @param wordlist
+     * @param charIds
+     */
     private static void applyWordFilter(char[] input, char[] wordlist, byte[][] charIds) {
         if (wordlist.length > input.length)
             return;
@@ -496,6 +552,13 @@ public class ChatFilter {
 
     }
 
+    /**
+     *
+     * @param charIdData
+     * @param prevCharId
+     * @param curCharId
+     * @return
+     */
     private static boolean compareCharIds(byte[][] charIdData, byte prevCharId, byte curCharId) {
         int first = 0;
         if (charIdData[first][0] == prevCharId && charIdData[first][1] == curCharId)
@@ -516,10 +579,11 @@ public class ChatFilter {
     }
 
     /**
+     * Compares letters with symbols that are commonly used in their place
      * @param filterChar
      * @param currentChar
      * @param nextChar
-     * @return 0 for no match, 1 for currentChar matches, 2 for both currentChar and nextChar matching
+     * @return
      */
     public static int compareLettersNumbers(char filterChar, char currentChar, char nextChar) {
         if (filterChar == currentChar)
@@ -676,6 +740,10 @@ public class ChatFilter {
             return 27;
     }
 
+    /**
+     *
+     * @param input
+     */
     public static void applyOrderFilter(char[] input) {
         int digitIndex = 0;
         int fromIndex = 0;
@@ -709,48 +777,96 @@ public class ChatFilter {
         }
     }
 
-    public static int indexOfDigit(char[] input, int fromIndex) {
-        for (int i = fromIndex; i < input.length && i >= 0; i++)
+    /**
+     * Finds the index of the first digit in char array
+     * @param input Char array to search
+     * @param offset Index to begin searching from
+     * @return int index. = -1 if not found
+     */
+    public static int indexOfDigit(char[] input, int offset) {
+        for (int i = offset; i < input.length && i >= 0; i++)
             if (input[i] >= '0' && input[i] <= '9')
                 return i;
 
         return -1;
     }
 
-    public static int indexOfNonDigit(char[] input, int fromIndex) {
-        for (int i = fromIndex; i < input.length && i >= 0; i++)
+    /**
+     * Finds the index of the first non-digit in a char array
+     * @param input Char array to search
+     * @param offset Index to begin searching from
+     * @return int index. = input.length if not found
+     */
+    public static int indexOfNonDigit(char[] input, int offset) {
+        for (int i = offset; i < input.length && i >= 0; i++)
             if (input[i] < '0' || input[i] > '9')
                 return i;
 
         return input.length;
     }
 
+    /**
+     * Determines if a char is not a digit or English letter
+     * @param c
+     * @return True/false
+     */
     public static boolean isSpecial(char c) {
         return !isLetter(c) && !isDigit(c);
     }
 
+    /**
+     * Determines if a char is NOT a lowercase English letter
+     * v,x,j,q,z are considered not lowercase as well
+     * @param c
+     * @return True/false
+     */
     public static boolean isNotLowercase(char c) {
         if (c < 'a' || c > 'z')
             return true;
         return c == 'v' || c == 'x' || c == 'j' || c == 'q' || c == 'z';
     }
 
+    /**
+     * Determines if a char is an English letter
+     * @param c
+     * @return
+     */
     public static boolean isLetter(char c) {
         return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
     }
 
+    /**
+     * Determines if a char is a digit
+     * @param c
+     * @return True/false
+     */
     public static boolean isDigit(char c) {
         return c >= '0' && c <= '9';
     }
 
+    /**
+     * Determines if a char is a lowercase English letter
+     * @param c
+     * @return True/false
+     */
     public static boolean isLowercase(char c) {
         return c >= 'a' && c <= 'z';
     }
 
+    /**
+     * Determines if a char is a capital English letter
+     * @param c
+     * @return True/false
+     */
     public static boolean isUppercase(char c) {
         return c >= 'A' && c <= 'Z';
     }
 
+    /**
+     *
+     * @param input
+     * @return
+     */
     public static boolean containsFragmentHashes(char[] input) {
         boolean notNum = true;
         for (int i = 0; i < input.length; i++)
@@ -776,9 +892,9 @@ public class ChatFilter {
         return false;
     }
 
-    /**
-     * @param word
-     * @return
+    /** Converts a word to its hash value
+     * @param word word to hash
+     * @return int hash
      */
     public static int word2hash(char[] word) {
         if (word.length > 6)
@@ -800,6 +916,12 @@ public class ChatFilter {
         return hash;
     }
 
+    /**
+     * Determines if there is a color code at the current position
+     * @param message Message to search
+     * @param pos Position of the message
+     * @return True/false
+     */
     private static boolean isColorCodeFormat(char[] message, int pos) {
         if (pos + 4 >= message.length)
             return false;

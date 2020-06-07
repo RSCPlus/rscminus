@@ -21,7 +21,20 @@ package rscminus.game.entity.player;
 import rscminus.game.NetworkStream;
 
 public class ChatMessage {
+    /**
+     * Holds a specific players' chat message until it is cleared
+     * in a player update type 1
+     * Max length is NetworkStream.BUFFER_SIZE-3
+     * -3 is to account for 1 byte opcode, 2 byte message size
+     */
     public byte[] messageBuffer = new byte[NetworkStream.BUFFER_SIZE-3];
+    /**
+     * Length of the raw message
+     */
     public int decipheredLength;
+
+    /**
+     * Length of the enciphered message
+     */
     public int encipheredLength;
 }
