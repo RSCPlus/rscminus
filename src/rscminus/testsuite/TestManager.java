@@ -35,9 +35,9 @@ public class TestManager {
     private static boolean help = false;
     public static String sqlUsername = null;
     public static String sqlPassword = null;
-    private static List<String> testsToRun = new ArrayList<>();
+    private static final List<String> testsToRun = new ArrayList<>();
 
-    private static Argument[] argumentList = new Argument[] {
+    private static final Argument[] argumentList = new Argument[] {
             new Argument("help", "shows all available arguments (you are viewing this now)"),
             new Argument("sqlu", "accepts your local sql username. eg -sqlu root"),
             new Argument("sqlp", "accepts your local sql password. eg -sqlp root"),
@@ -45,7 +45,7 @@ public class TestManager {
             new Argument("run", "runs a single test. eg: -run test1 -run test2"),
     };
 
-    private static String testPackage = "rscminus.testsuite.tests.";
+    private static final String testPackage = "rscminus.testsuite.tests.";
 
     public static void main(String[] args) {
         processArguments(args);

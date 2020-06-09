@@ -50,6 +50,7 @@ public class Server implements Runnable {
     }
 
     public void run() {
+        // Initialize rscminus
         Crypto.init();
         JGameData.init(true);
         ChatCipher.init();

@@ -29,8 +29,9 @@ public class ChatCipher {
     /**
      * Unicode characters that are mapped to specific byte values
      * The array is for byte->char, the dict is for char->byte
-     * Note: We found no evidence of these unicode characters in scraped replays
-     * so we can't be sure this was actually possible. But it seems highly likely that it was.
+     * Note: We found no evidence of these unicode characters in scraped replays.
+     * While we can't be sure that the server would actually transmit these mapped
+     * characters, it seems likely that it did.
      */
     private final static char[] specialCharacters = new char[] { '\u20ac', '?', '\u201a', '\u0192', '\u201e', '\u2026', '\u2020', '\u2021', '\u02c6',
             '\u2030', '\u0160', '\u2039', '\u0152', '?', '\u017d', '?', '?', '\u2018', '\u2019', '\u201c',

@@ -38,26 +38,32 @@ public class ChatFilter {
     /**
      * Words that should circumvent the censor
      */
-    private static String[] ignoreList = {
+    private static final String[] ignoreList = {
             "cook", "cook's", "cooks", "seeks", "sheet"
     };
 
     /**
      * Letters that appear directly after these chars are forced to be capitalized
      */
-    private static char[] forceUpperChars = new char[]{'.', '!', '?'} ;
+    private static final char[] forceUpperChars = new char[]{'.', '!', '?'} ;
 
     /**
      * Used for the URL filter
      */
-    private static char[] dot = { 'd', 'o', 't' };
-    private static char[] slash = {'s', 'l', 'a', 's', 'h' };
+    private static final char[] dot = { 'd', 'o', 't' };
+    private static final char[] slash = {'s', 'l', 'a', 's', 'h' };
 
     /**
      * Dictates if the censor should operate. Even if it is off,
      * capitalization will still be checked
      */
     private static boolean censorOn = false;
+
+    /**
+     * Controls the censor flag
+     */
+    public static void enable() { censorOn = true; }
+    public static void disable() { censorOn = false; }
 
     /**
      * Loads the censor list from file
@@ -84,10 +90,31 @@ public class ChatFilter {
     }
 
     /**
-     * Controls the censor flag
+     * Main filter function. Applies censoring, if enabled, and capitalization formatting
+     * @param input message typed by the user
+     * @return string with filtered message
      */
-    public static void enable() { censorOn = true; }
-    public static void disable() { censorOn = false; }
+    public static String filter(String input) {
+        char[] inputChars = input.toLowerCase().toCharArray();
+        if (censorOn) {
+            applyDotSlashFilter(inputChars);
+            applyBadwordFilter(inputChars);
+            applyHostFilter(inputChars);
+            applyDigitFilter(inputChars);
+            for (int ignoreIdx = 0; ignoreIdx < ignoreList.length; ignoreIdx++) {
+                for (int inputIgnoreIdx = -1; (inputIgnoreIdx = input.indexOf(ignoreList[ignoreIdx], inputIgnoreIdx + 1)) != -1; ) {
+                    char[] ignorewordChars = ignoreList[ignoreIdx].toCharArray();
+                    for (int ignorewordIdx = 0; ignorewordIdx < ignorewordChars.length; ignorewordIdx++)
+                        inputChars[ignorewordIdx + inputIgnoreIdx] = ignorewordChars[ignorewordIdx];
+
+                }
+            }
+        }
+        stripLowercase(input.toCharArray(), inputChars);
+        toLowercase(inputChars);
+
+        return new String(inputChars);
+    }
 
     /**
      * Populates class arrays from file
@@ -101,6 +128,7 @@ public class ChatFilter {
 
     /**
      * Populates tldList, tldType
+     * Top level domains (com, org, gov etc)
      */
     private static void loadTld(JContentFile buffer) {
         int wordcount = buffer.readUnsignedInt();
@@ -130,7 +158,7 @@ public class ChatFilter {
 
     /**
      * Populates hostList, hostCharIds
-     * URLs
+     * Host names
      */
     private static void loadHost(JContentFile buffer) {
         int wordcount = buffer.readUnsignedInt();
@@ -171,36 +199,9 @@ public class ChatFilter {
     }
 
     /**
-     * Main filter function. Applies censoring, if enabled, and capitalization formatting
-     * @param input message typed by the user
-     * @return string with filtered message
-     */
-    public static String filter(String input) {
-        char[] inputChars = input.toLowerCase().toCharArray();
-        if (censorOn) {
-            applyDotSlashFilter(inputChars);
-            applyBadwordFilter(inputChars);
-            applyHostFilter(inputChars);
-            applyOrderFilter(inputChars);
-            for (int ignoreIdx = 0; ignoreIdx < ignoreList.length; ignoreIdx++) {
-                for (int inputIgnoreIdx = -1; (inputIgnoreIdx = input.indexOf(ignoreList[ignoreIdx], inputIgnoreIdx + 1)) != -1; ) {
-                    char[] ignorewordChars = ignoreList[ignoreIdx].toCharArray();
-                    for (int ignorewordIdx = 0; ignorewordIdx < ignorewordChars.length; ignorewordIdx++)
-                        inputChars[ignorewordIdx + inputIgnoreIdx] = ignorewordChars[ignorewordIdx];
-
-                }
-            }
-        }
-        stripLowercase(input.toCharArray(), inputChars);
-        toLowercase(inputChars);
-
-        return new String(inputChars);
-    }
-
-    /**
      * Sets all output chars to uppercase if they are uppercase in the input string
-     * @param input
-     * @param output
+     * @param input original message
+     * @param output filtered message
      */
     private static void stripLowercase(char[] input, char[] output) {
         for (int i = 0; i < input.length; i++)
@@ -210,7 +211,7 @@ public class ChatFilter {
 
     /**
      * Applies the capitalization filter
-     * @param input
+     * @param input message to censor
      */
     private static void toLowercase(char[] input) {
         boolean force = true;
@@ -253,7 +254,7 @@ public class ChatFilter {
     /**
      * Removes profanity from a message. The censored word list is
      * loaded in ChatFilter.init()
-     * @param input
+     * @param input message to censor
      */
     private static void applyBadwordFilter(char[] input) {
         for (int i = 0; i < 2; i++) {
@@ -264,37 +265,23 @@ public class ChatFilter {
     }
 
     /**
-     * Removes specific URLs from a message. The URL list is
+     * Removes specific host names from a message. The URL list is
      * loaded in ChatFilter.init()
-     * @param input
+     * @param input message to censor
      */
-    public static void applyHostFilter(char[] input) {
+    private static void applyHostFilter(char[] input) {
         for (int i = hostList.length - 1; i >= 0; i--)
             applyWordFilter(input, hostList[i], hostCharIds[i]);
     }
 
     /**
-     * Removes "dot" & "slash", which are typically attempts to get around
-     * URL filter
-     * @param input
-     */
-    private static void applyDotSlashFilter(char[] input) {
-        char[] input1 = input.clone();
-        applyWordFilter(input1, dot, null);
-        char[] input2 = input.clone();
-        applyWordFilter(input2, slash, null);
-        for (int i = 0; i < tldList.length; i++)
-            applyTldFilter(input, input1, input2, tldList[i], tldType[i]);
-
-    }
-
-    /**
-     *
-     * @param input
-     * @param input1
-     * @param input2
-     * @param tld
-     * @param type
+     * Removes specific top level domains from a message. The TLD list is
+     * loaded in ChatFilter.init()
+     * @param input Message to search
+     * @param input1 input after ran through the dot filter
+     * @param input2 input after ran through the slash filter
+     * @param tld Top level domain
+     * @param type tld type as specified in the filter file
      */
     private static void applyTldFilter(char[] input, char[] input1, char[] input2, char[] tld, int type) {
         if (tld.length > input.length)
@@ -325,20 +312,19 @@ public class ChatFilter {
             }
             if (l >= tld.length) {
                 boolean flag = false;
-                int startMatch = getAsteriskCount(input, input1, charIndex);
-                int endMatch = getAsteriskCount2(input, input2, inputCharCount - 1);
-                if (type == 1 && startMatch > 0 && endMatch > 0)
+                int dotUsage = getDotUsage(input, input1, charIndex);
+                int slashUsage = getSlashUsage(input, input2, inputCharCount - 1);
+                if (type == 1 && dotUsage > 0 && slashUsage > 0)
                     flag = true;
-                if (type == 2 && (startMatch > 2 && endMatch > 0 || startMatch > 0 && endMatch > 2))
+                if (type == 2 && (dotUsage > 2 && slashUsage > 0 || dotUsage > 0 && slashUsage > 2))
                     flag = true;
-                if (type == 3 && startMatch > 0 && endMatch > 2)
+                if (type == 3 && dotUsage > 0 && slashUsage > 2)
                     flag = true;
-                boolean tmp = type == 3 && startMatch > 2 && endMatch > 0;
                 if (flag) {
                     int l1 = charIndex;
                     int i2 = inputCharCount - 1;
-                    if (startMatch > 2) {
-                        if (startMatch == 4) {
+                    if (dotUsage > 2) {
+                        if (dotUsage == 4) {
                             boolean flag1 = false;
                             for (int k2 = l1 - 1; k2 >= 0; k2--)
                                 if (flag1) {
@@ -363,8 +349,8 @@ public class ChatFilter {
                             }
 
                     }
-                    if (endMatch > 2) {
-                        if (endMatch == 4) {
+                    if (slashUsage > 2) {
+                        if (slashUsage == 4) {
                             boolean flag3 = false;
                             for (int i3 = i2 + 1; i3 < input.length; i3++)
                                 if (flag3) {
@@ -398,17 +384,32 @@ public class ChatFilter {
     }
 
     /**
-     *
-     *
-     * @param input
-     * @param input1
-     * @param len
-     * @return
+     * Censors "dot" & "slash" , which are typically attempts to get around
+     * URL filtering. Also censors top level domains
+     * @param input message to censor
      */
-    private static int getAsteriskCount(char[] input, char[] input1, int len) {
-        if (len == 0)
+    private static void applyDotSlashFilter(char[] input) {
+        char[] input1 = input.clone();
+        applyWordFilter(input1, dot, null);
+        char[] input2 = input.clone();
+        applyWordFilter(input2, slash, null);
+        for (int i = 0; i < tldList.length; i++)
+            applyTldFilter(input, input1, input2, tldList[i], tldType[i]);
+
+    }
+
+    /**
+     * Determines if a dot is at the given position
+     * @param input raw message to search
+     * @param input1 input after ran through the dot filter
+     * @param position position in message to search
+     * @return 0: no, 1: special char, 2: end of message,
+     *         3: yes, 4: yes (censored)
+     */
+    private static int getDotUsage(char[] input, char[] input1, int position) {
+        if (position == 0)
             return 2;
-        for (int j = len - 1; j >= 0; j--) {
+        for (int j = position - 1; j >= 0; j--) {
             if (!isSpecial(input[j]))
                 break;
             if (input[j] == ',' || input[j] == '.')
@@ -416,7 +417,7 @@ public class ChatFilter {
         }
 
         int filtered = 0;
-        for (int l = len - 1; l >= 0; l--) {
+        for (int l = position - 1; l >= 0; l--) {
             if (!isSpecial(input1[l]))
                 break;
             if (input1[l] == '*')
@@ -425,17 +426,18 @@ public class ChatFilter {
 
         if (filtered >= 3)
             return 4;
-        return isSpecial(input[len - 1]) ? 1 : 0;
+        return isSpecial(input[position - 1]) ? 1 : 0;
     }
 
     /**
-     *
-     * @param input
-     * @param input1
-     * @param len
-     * @return
+     * Determines if a slash is at the given position
+     * @param input raw message to search
+     * @param input1 input after ran through slash filter
+     * @param len position to search
+     * @return 0: no, 1: special char, 2: end of message,
+     *         3: yes, 4: yes (censored)
      */
-    private static int getAsteriskCount2(char[] input, char[] input1, int len) {
+    private static int getSlashUsage(char[] input, char[] input1, int len) {
         if (len + 1 == input.length)
             return 2;
         for (int j = len + 1; j < input.length; j++) {
@@ -459,10 +461,11 @@ public class ChatFilter {
     }
 
     /**
-     *
-     * @param input
-     * @param wordlist
-     * @param charIds
+     * Censors a message using the supplied filter
+     * @param input message to search
+     * @param wordlist list of unacceptable words
+     * @param charIds a group of characters that can disable the filter,
+     *                loaded with the word list
      */
     private static void applyWordFilter(char[] input, char[] wordlist, byte[][] charIds) {
         if (wordlist.length > input.length)
@@ -553,11 +556,11 @@ public class ChatFilter {
     }
 
     /**
-     *
-     * @param charIdData
-     * @param prevCharId
-     * @param curCharId
-     * @return
+     * Compares two consecutive chars in a message
+     * @param charIdData character values specific to an unacceptable word
+     * @param prevCharId first char
+     * @param curCharId second char
+     * @return True/false
      */
     private static boolean compareCharIds(byte[][] charIdData, byte prevCharId, byte curCharId) {
         int first = 0;
@@ -580,12 +583,12 @@ public class ChatFilter {
 
     /**
      * Compares letters with symbols that are commonly used in their place
-     * @param filterChar
-     * @param currentChar
-     * @param nextChar
-     * @return
+     * @param filterChar char to filter
+     * @param currentChar char that mimics filterChar
+     * @param nextChar secondary char, used only for ph->f
+     * @return 0 for no match, 1 for match, 2 for ph->f
      */
-    public static int compareLettersNumbers(char filterChar, char currentChar, char nextChar) {
+    private static int compareLettersNumbers(char filterChar, char currentChar, char nextChar) {
         if (filterChar == currentChar)
             return 1;
         if (filterChar == 'e' && currentChar == '3')
@@ -606,12 +609,13 @@ public class ChatFilter {
     }
 
     /**
+     * Compares letters with symbols that are commonly used in their place
      * @param filterChar  character to compare against
      * @param currentChar current character
      * @param nextChar    next character
      * @return 0 for no match, 1 for currentChar matches, 2 for both currentChar and nextChar matching
      */
-    public static int compareLettersSymbols(char filterChar, char currentChar, char nextChar) {
+    private static int compareLettersSymbols(char filterChar, char currentChar, char nextChar) {
         if (filterChar == '*')
             return 0;
         if (filterChar == currentChar)
@@ -726,10 +730,10 @@ public class ChatFilter {
      * 29-38  0-9
      * </pre>
      *
-     * @param c
+     * @param c char to check
      * @return id for char {@code c}
      */
-    public static byte getCharId(char c) {
+    private static byte getCharId(char c) {
         if (c >= 'a' && c <= 'z')
             return (byte) (c - 97 + 1);
         if (c == '\'')
@@ -741,10 +745,12 @@ public class ChatFilter {
     }
 
     /**
-     *
-     * @param input
+     * Censors groups of 4 digits separated by special characters
+     * EX: 19.5 43.75 14.5
+     *     ********** 14.5
+     * @param input message to filter
      */
-    public static void applyOrderFilter(char[] input) {
+    private static void applyDigitFilter(char[] input) {
         int digitIndex = 0;
         int fromIndex = 0;
         int k = 0;
@@ -771,7 +777,6 @@ public class ChatFilter {
             if (k == 4) {
                 for (int i = l; i < fromIndex; i++)
                     input[i] = '*';
-
                 k = 0;
             }
         }
@@ -783,7 +788,7 @@ public class ChatFilter {
      * @param offset Index to begin searching from
      * @return int index. = -1 if not found
      */
-    public static int indexOfDigit(char[] input, int offset) {
+    private static int indexOfDigit(char[] input, int offset) {
         for (int i = offset; i < input.length && i >= 0; i++)
             if (input[i] >= '0' && input[i] <= '9')
                 return i;
@@ -797,7 +802,7 @@ public class ChatFilter {
      * @param offset Index to begin searching from
      * @return int index. = input.length if not found
      */
-    public static int indexOfNonDigit(char[] input, int offset) {
+    private static int indexOfNonDigit(char[] input, int offset) {
         for (int i = offset; i < input.length && i >= 0; i++)
             if (input[i] < '0' || input[i] > '9')
                 return i;
@@ -807,20 +812,20 @@ public class ChatFilter {
 
     /**
      * Determines if a char is not a digit or English letter
-     * @param c
+     * @param c char to check
      * @return True/false
      */
-    public static boolean isSpecial(char c) {
+    private static boolean isSpecial(char c) {
         return !isLetter(c) && !isDigit(c);
     }
 
     /**
      * Determines if a char is NOT a lowercase English letter
      * v,x,j,q,z are considered not lowercase as well
-     * @param c
+     * @param c char to check
      * @return True/false
      */
-    public static boolean isNotLowercase(char c) {
+    private static boolean isNotLowercase(char c) {
         if (c < 'a' || c > 'z')
             return true;
         return c == 'v' || c == 'x' || c == 'j' || c == 'q' || c == 'z';
@@ -828,46 +833,47 @@ public class ChatFilter {
 
     /**
      * Determines if a char is an English letter
-     * @param c
-     * @return
+     * @param c char to check
+     * @return True/false
      */
-    public static boolean isLetter(char c) {
+    private static boolean isLetter(char c) {
         return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
     }
 
     /**
      * Determines if a char is a digit
-     * @param c
+     * @param c char to check
      * @return True/false
      */
-    public static boolean isDigit(char c) {
+    private static boolean isDigit(char c) {
         return c >= '0' && c <= '9';
     }
 
     /**
      * Determines if a char is a lowercase English letter
-     * @param c
+     * @param c char to check
      * @return True/false
      */
-    public static boolean isLowercase(char c) {
+    private static boolean isLowercase(char c) {
         return c >= 'a' && c <= 'z';
     }
 
     /**
      * Determines if a char is a capital English letter
-     * @param c
+     * @param c char to check
      * @return True/false
      */
-    public static boolean isUppercase(char c) {
+    private static boolean isUppercase(char c) {
         return c >= 'A' && c <= 'Z';
     }
 
     /**
-     *
-     * @param input
-     * @return
+     * Searches a message for message fragments (hashed)
+     * List of fragments is loaded in ChatFilter.init()
+     * @param input message to search
+     * @return True/false
      */
-    public static boolean containsFragmentHashes(char[] input) {
+    private static boolean containsFragmentHashes(char[] input) {
         boolean notNum = true;
         for (int i = 0; i < input.length; i++)
             if (!isDigit(input[i]) && input[i] != 0)
@@ -896,7 +902,7 @@ public class ChatFilter {
      * @param word word to hash
      * @return int hash
      */
-    public static int word2hash(char[] word) {
+    private static int word2hash(char[] word) {
         if (word.length > 6)
             return 0;
         int hash = 0;

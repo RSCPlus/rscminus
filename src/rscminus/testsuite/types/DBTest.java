@@ -27,9 +27,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class DBTest implements UnitTest {
-    private static String connectionURL = "jdbc:mysql://localhost/?user={0}&password={1}";
-    private List<Connection> sqlConnections = new ArrayList<>();
-    private List<Statement> sqlStatements = new ArrayList<>();
+    private static final String connectionURL = "jdbc:mysql://localhost/?user={0}&password={1}";
+    private final List<Connection> sqlConnections = new ArrayList<>();
+    private final List<Statement> sqlStatements = new ArrayList<>();
 
     public boolean init() throws Exception{
         if (TestManager.sqlUsername == null ||

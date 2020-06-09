@@ -45,9 +45,10 @@ import java.util.Arrays;
  * is ran through the same process to test edge cases of all the functions.
  */
 public class chat extends DBTest {
-    private static ChatMessage chatMessage = new ChatMessage();
-    private static NetworkStream networkStream = new NetworkStream();
+    private static final ChatMessage chatMessage = new ChatMessage();
+    private static final NetworkStream networkStream = new NetworkStream();
 
+    @Override
     public boolean run() throws Exception {
         ChatCipher.init();
 
