@@ -19,14 +19,13 @@
 
 package rscminus.game.entity;
 
-import rscminus.common.ISAACCipher;
-import rscminus.common.JGameData;
-import rscminus.common.SocketUtil;
+import rscminus.common.*;
 import rscminus.game.*;
 import rscminus.game.constants.Game;
 import rscminus.game.data.LoginInfo;
 import rscminus.game.data.SaveInfo;
 import rscminus.game.entity.player.ActionSlot;
+import rscminus.game.entity.player.ChatMessage;
 import rscminus.game.entity.player.WalkingQueue;
 import rscminus.game.world.ViewRegion;
 
@@ -66,8 +65,10 @@ public class Player extends Entity {
     public static final int OPCODE_WALKTO = 187;
     public static final int OPCODE_SET_APPEARANCE = 235;
     public static final int OPCODE_DROP_ITEM = 246;
+    public static final int OPCODE_SEND_CHAT_MESSAGE = 216;
 
     // Player update
+    private boolean m_updateChat;
     private boolean m_updateAppearance;
 
     // Game state
@@ -81,6 +82,7 @@ public class Player extends Entity {
     private boolean m_loggedIn;
     private boolean m_loggedOut;
     private WalkingQueue m_walkingQueue;
+    public ChatMessage chatMessage = new ChatMessage();
 
     public Player(int index, PlayerManager playerManager, WorldManager worldManager) {
         m_index = index;
@@ -122,6 +124,7 @@ public class Player extends Entity {
 
         // Player update
         m_updateAppearance = true;
+        m_updateChat = false;
     }
 
     public void setLoginInfo(LoginInfo loginInfo) {
@@ -526,6 +529,8 @@ public class Player extends Entity {
     public void processPlayerUpdate(NetworkStream stream) {
         if (m_updateAppearance)
             PacketBuilder.addPlayerUpdateAppearance(this, stream);
+        if (m_updateChat)
+            PacketBuilder.addPlayerUpdateChat(this, stream);
     }
 
     public void processClientUpdate() {
@@ -656,8 +661,21 @@ public class Player extends Entity {
                 m_actionSlot.setAction(ActionSlot.ACTION_INVENTORY_DROP);
                 m_actionSlot.setInventorySlot(m_packetStream.readUnsignedShort());
                 break;
+            case OPCODE_SEND_CHAT_MESSAGE:
+                //Check if the user already has a message queued
+                if (m_updateChat)
+                    break;
+                String decipheredMessage = ChatCipher.decipher(m_packetStream);
+                decipheredMessage = ChatFilter.filter(decipheredMessage);
+                ChatCipher.encipher(decipheredMessage, chatMessage);
+                m_updateChat = true;
+                break;
             default:
                 System.out.println("undefined opcode: " + opcode + ", length: " + length);
+                while (length-- > 0) {
+                    System.out.print(m_packetStream.readByte() + " ");
+                }
+                System.out.println();
                 break;
             }
         }
@@ -668,6 +686,7 @@ public class Player extends Entity {
 
         // Reset player update states
         m_updateAppearance = false;
+        m_updateChat = false;
 
         // Player is logged out, remove them from the player list
         if (m_loggedOut)

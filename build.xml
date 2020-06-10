@@ -14,6 +14,10 @@
         <property name="jar.name.scraper" value="${ant.project.name}-scraper.jar" />
         <property name="jar.file.scraper" value="${dist.dir}/${jar.name.scraper}" />
 
+        <property name="jar.main-class.testsuite" value="rscminus.testsuite.TestManager" />
+        <property name="jar.name.testsuite" value="${ant.project.name}-testsuite.jar" />
+        <property name="jar.file.testsuite" value="${dist.dir}/${jar.name.testsuite}" />
+
         <path id="classpath">
                 <fileset dir="${basedir}">
                         <include name="lib/*.jar" />
@@ -51,6 +55,16 @@
                         </manifest>
                         <fileset dir=".">
                                 <include name="${assets.dir}/**" />
+                                <include name="LICENSE" />
+                        </fileset>
+                        <zipfileset src="${build.dir}/deps.jar" excludes="META-INF/*.SF" />
+                </jar>
+
+                <jar destfile="${jar.file.testsuite}" basedir="${build.dir}">
+                        <manifest>
+                                <attribute name="Main-Class" value="${jar.main-class.testsuite}"/>
+                        </manifest>
+                        <fileset dir=".">
                                 <include name="LICENSE" />
                         </fileset>
                         <zipfileset src="${build.dir}/deps.jar" excludes="META-INF/*.SF" />

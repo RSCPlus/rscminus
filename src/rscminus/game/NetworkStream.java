@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 public class NetworkStream {
+    public static final int BUFFER_SIZE = 5000;
     private ByteBuffer m_byteBuffer;
     private byte[] m_buffer;
     private int m_position;
@@ -37,7 +38,7 @@ public class NetworkStream {
     private int m_packetStart;
 
     public NetworkStream() {
-        m_byteBuffer = ByteBuffer.allocate(5000);
+        m_byteBuffer = ByteBuffer.allocate(BUFFER_SIZE);
         m_buffer = m_byteBuffer.array();
         m_position = 0;
         m_packetStart = 0;
@@ -77,6 +78,8 @@ public class NetworkStream {
     public void flip() {
         m_position = 0;
     }
+
+    public int getAvailable() { return m_buffer.length - m_position; }
 
     public int getPosition() {
         return m_position;
@@ -160,14 +163,23 @@ public class NetworkStream {
         writeUnsignedByte(value & 0xFF);
     }
 
-    public void writeString(String value) {
-        writeArray(value.getBytes(), 0, value.length());
+    public void writeString(CharSequence charSequence) {
+        for (int i=0; i < charSequence.length(); ++i)
+            writeByte((byte)charSequence.charAt(i));
+
         writeUnsignedByte(0x00);
     }
 
     public void writePaddedString(String value) {
         writeUnsignedByte(0x00);
         writeString(value);
+    }
+
+    public void writeVariableSize(int size) {
+        if (size < 128)
+            writeByte((byte)size);
+        else
+            writeShort((short)(size + 32768));
     }
 
     public void readArray(byte array[], int offset, int length) {
@@ -186,6 +198,8 @@ public class NetworkStream {
     public int readUnsignedByte() {
         return m_buffer[m_position++] & 0xFF;
     }
+
+    public int peekUnsignedByte() { return m_buffer[m_position] & 0xFF; }
 
     public int readUnsignedShort() {
         return (readUnsignedByte() << 8) | readUnsignedByte();
@@ -243,6 +257,13 @@ public class NetworkStream {
         stream.seek(0);
         m_position += length;
         return length;
+    }
+
+    public int readVariableSize() {
+        int messageLength = peekUnsignedByte();
+
+        //The message length can be one or two bytes
+        return messageLength < 128 ? readUnsignedByte() : readUnsignedShort() - 32768;
     }
 
     public int readPacket(NetworkStream stream) {
