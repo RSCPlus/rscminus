@@ -50,6 +50,7 @@ public class Settings {
   public static boolean dumpChat = false;
   public static boolean dumpMessages = false;
   public static boolean dumpNpcLocs = false;
+  public static boolean dumpSleepWords = false;
   public static boolean needNpcCreation = true;
   public static String scraperOutputPath = "dump";
 

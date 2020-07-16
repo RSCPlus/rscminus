@@ -37,6 +37,7 @@ public class PacketBuilder {
     public static final int OPCODE_SET_INVENTORY = 53;
     public static final int OPCODE_SET_APPEARANCE = 59;
     public static final int OPCODE_CREATE_NPC = 79;
+    public static final int OPCODE_WAKE_UP = 84;
     public static final int OPCODE_SEND_PM = 87;
     public static final int OPCODE_SET_INVENTORY_SLOT = 90;
     public static final int OPCODE_BOUNDARY_HANDLER = 91;
