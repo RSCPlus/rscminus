@@ -29,8 +29,12 @@ import rscminus.scraper.client.Character;
 
 import java.io.*;
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.ArrayList;
 
 import static rscminus.common.Settings.initDir;
 import static rscminus.scraper.ReplayEditor.appendingToReplay;
@@ -386,31 +390,6 @@ public class Scraper {
         return out.toByteArray();
     }
 
-    private static boolean playerWasAsleep(int timestamp, HashMap<Integer, Integer> sleepIndexes, HashMap<Integer, Integer> wokeIndexes) {
-        int sleepSize = sleepIndexes.size();
-        int wokeSize = wokeIndexes.size();
-        if (wokeSize > sleepSize) {
-            // could possibly happen if the server sends "wake up packet" more often than necessary.
-            Logger.Error(String.format("Woke up (%d) more times than slept (%d), error in playerWasAsleep",
-                wokeIndexes.size(), sleepSize));
-        }
-
-        for (int sleepSession = 0; sleepSession < sleepSize; sleepSession++) {
-            if (timestamp > sleepIndexes.get(sleepSession)) {
-                if (sleepSession >= wokeSize)
-                    return true;
-                if (timestamp < wokeIndexes.get(sleepSession)) {
-                    // sandwiched between the sleep & woke indexes
-                    return true;
-                }
-            } else {
-                // passed all opportunities to be asleep
-                return false;
-            }
-        }
-        return false;
-    }
-
     private static void dumpScenery(String fname) {
         int sceneryCount = 0;
         for (HashMap.Entry<Integer, Integer> entry : m_sceneryLocs.entrySet()) {
@@ -585,16 +564,7 @@ public class Scraper {
         int op234type1EchoCount = 0;
         int sendPMEchoCount = 0;
 
-        int imageCount = 0;
-        int wokeCount = 1; // you start a login session woke lol.
-        HashMap<Integer, Boolean> wokeSuccesses = new HashMap<Integer, Boolean>();
-        HashMap<Integer, Integer> suddenlyAwokeIndexes = new HashMap<Integer, Integer>();
-
-        // track if user is asleep during packet or not, used during outgoing packets loop
-        HashMap<Integer, Integer> sleepIndexes = new HashMap<Integer, Integer>();
-        HashMap<Integer, Integer> wokeIndexes = new HashMap<Integer, Integer>();
-
-
+        HashMap<Integer, ReplayPacket> interestingSleepPackets = new HashMap<Integer, ReplayPacket>();
 
         // Process incoming packet
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
@@ -606,9 +576,8 @@ public class Scraper {
                     case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
                         Logger.Info("loginresponse: " + packet.data[0] + " (timestamp: " + packet.timestamp + ")");
 
-                        // this is for the possibility of reconnecting while user was asleep
-                        while (wokeIndexes.size() < sleepIndexes.size()) {
-                            wokeIndexes.put(wokeIndexes.size(), packet.timestamp);
+                        if (Settings.dumpSleepWords) {
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
                         }
 
                         break;
@@ -628,7 +597,7 @@ public class Scraper {
 
                             if (Settings.dumpSleepWords) {
                                 if (sendMessage.equals("You are unexpectedly awoken! You still feel tired")) {
-                                    suddenlyAwokeIndexes.put(suddenlyAwokeIndexes.size(), packet.timestamp);
+                                    interestingSleepPackets.put(interestingSleepPackets.size(), packet);
                                 }
                             }
 
@@ -1047,78 +1016,12 @@ public class Scraper {
                         break;
                     case PacketBuilder.OPCODE_SLEEP_WORD:
                         if (Settings.dumpSleepWords) {
-                            ++imageCount;
-                            if (packet.data.length > 0) {
-                                String sleepWordFileName = String.format("%ssleepword/sleep_!SUDDENLYAWOKE!%s_%d.",
-                                    Settings.scraperOutputPath,
-                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
-                                    imageCount);
-
-                                // Mark the last sleep as failed if we are missing a WAKE UP packet
-                                if (wokeCount != imageCount) {
-                                    wokeSuccesses.put(wokeSuccesses.size(), false);
-                                    ++wokeCount; // fixes detection of failed woke for next sleep word
-                                } else {
-                                    // start a sleep session
-                                    sleepIndexes.put(sleepIndexes.size(), packet.timestamp);
-                                }
-
-                                byte[] data = new byte[packet.data.length];
-
-                                for (int i = 0; i < packet.data.length; i++) {
-                                    data[i] = packet.data[i];
-                                    System.out.print(String.format("%x", data[i]));
-                                }
-                                System.out.println();
-
-                                // convert to BMP (mostly for fun)
-                                try {
-                                    data = convertImage(data);
-                                    try (FileOutputStream fos = new FileOutputStream(String.format("%sbmp", sleepWordFileName))) {
-                                        fos.write(saveBitmap(data));
-                                    }
-                                } catch (Exception e) {
-                                    //never happens btw
-                                    e.printStackTrace();
-                                }
-
-                                // export raw packet data
-                                try {
-                                    try (FileOutputStream fos = new FileOutputStream(String.format("%sbin", sleepWordFileName))) {
-                                        fos.write(packet.data);
-                                    }
-                                } catch (Exception e) {
-                                    //never happens btw
-                                    e.printStackTrace();
-                                }
-
-                                Logger.Info(String.format("sleepword %d: %d length: %d", imageCount, packet.opcode, packet.data.length));
-
-                            } else {
-                                wokeSuccesses.put(wokeSuccesses.size(), false);
-                                Logger.Warn("Zero length packet 117 in " + fname);
-                            }
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
                         }
                         break;
                     case PacketBuilder.OPCODE_WAKE_UP:
                         if (Settings.dumpSleepWords) {
-                            // The server for whatever reason, could send an extra WAKE UP packet.
-                            //
-                            // An example can be seen 1983 seconds into
-                            // "Logg/Tylerbeg/08-05-2018 22.59.33 finish mage arena and unlock spell"
-                            // where it happens because both the trigger to wake up from being attacked AND
-                            // the trigger to wake up from successfully completing the sleep challenge are set
-                            // at nearly the same time... (note: strangely, fatigue isn't restored in that instance)
-                            if (playerWasAsleep(packet.timestamp, sleepIndexes, wokeIndexes)) {
-
-                                ++wokeCount;
-
-                                wokeSuccesses.put(wokeSuccesses.size(), true);
-                                // end a sleep session
-                                wokeIndexes.put(wokeIndexes.size(), packet.timestamp);
-                            } else {
-                                Logger.Info(String.format("Server sent extra WAKE_UP packet at timestamp %d in replay %s", packet.timestamp, fname));
-                            }
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
                         }
                         break;
                     case PacketBuilder.OPCODE_CLOSE_CONNECTION_NOTIFY:
@@ -1168,8 +1071,6 @@ public class Scraper {
 
         int op216Count = 0;
         int sendPMCount = 0;
-        int validSleepWordSentCount = 0;
-        int suddenlyAwokeIndexesIndex = 0;
 
         // Process outgoing packets
         LinkedList<ReplayPacket> outgoingPackets = editor.getOutgoingPackets();
@@ -1238,113 +1139,7 @@ public class Scraper {
                         break;
                     case 45: // Send Sleepword Guess
                         if (Settings.dumpSleepWords) {
-                            packet.readUnsignedByte(); // "delay"
-                            String sleepWordGuess = packet.readPaddedString();
-
-                            // account for previous sleeps that didn't get a packet 45
-                            if (suddenlyAwokeIndexes.size() - 1 >= suddenlyAwokeIndexesIndex) {
-                                while (suddenlyAwokeIndexes.get(suddenlyAwokeIndexesIndex) - 1 <= packet.timestamp) {
-                                    ++validSleepWordSentCount; // skip a sleepword
-                                    Logger.Info("skip word");
-                                    ++suddenlyAwokeIndexesIndex;
-                                    if (suddenlyAwokeIndexes.size() - 1 < suddenlyAwokeIndexesIndex) {
-                                        break;
-                                    }
-                                }
-                            }
-
-                            Logger.Info(String.format("valid sleepword sent count: %d", validSleepWordSentCount));
-
-
-                            Logger.Error(
-                                String.format(
-                                    "sleepwords size: %d; woke successes size: %d; wokeIndexes.size: %d; suddenlyAwokeIndexs.size: %d; sleepword sent count: %d",
-                                    imageCount,
-                                    wokeSuccesses.size(),
-                                    wokeIndexes.size(),
-                                    suddenlyAwokeIndexes.size(),
-                                    validSleepWordSentCount
-                                )
-                            );
-
-                            // disregard sent sleepword if the next wakeup is followed by being suddenly awoke
-                            int wokeNext = -1;
-                            if (wokeIndexes.size() - 1 >= validSleepWordSentCount) {
-                                wokeNext = wokeIndexes.get(validSleepWordSentCount);
-                            }
-                            int suddenlyAwokeNext = -1;
-                            if (suddenlyAwokeIndexes.size() - 1 >= suddenlyAwokeIndexesIndex) {
-                                suddenlyAwokeNext = suddenlyAwokeIndexes.get(suddenlyAwokeIndexesIndex);
-                            }
-                            if (wokeNext + 1 != suddenlyAwokeNext) {
-
-                                // player must have been asleep or else it's just an extra packet the client sent for no reason
-                                if (playerWasAsleep(packet.timestamp, sleepIndexes, wokeIndexes)) {
-
-                                    ++validSleepWordSentCount;
-                                    Logger.Info(String.format("NEW valid sleepword sent count: %d; %s", validSleepWordSentCount, sleepWordGuess));
-
-                                    String sleepWordFileNameOld = String.format("%ssleepword/sleep_!SUDDENLYAWOKE!%s_%d.",
-                                        Settings.scraperOutputPath,
-                                        fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
-                                        validSleepWordSentCount);
-                                    String sleepWordFileNameNew;
-
-                                    // if guess was correct:
-                                    if (wokeSuccesses.size()  >= validSleepWordSentCount) {
-                                        if (wokeSuccesses.get(validSleepWordSentCount - 1)) {
-                                            sleepWordFileNameNew = String.format("%ssleepword/sleep_%s%s_%s.",
-                                                Settings.scraperOutputPath,
-                                                sleepWordGuess,
-                                                fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
-                                                validSleepWordSentCount);
-                                        } else {
-                                            sleepWordFileNameNew = String.format("%ssleepword/sleep_!INCORRECT!_%s%s_%s.",
-                                                Settings.scraperOutputPath,
-                                                sleepWordGuess,
-                                                fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
-                                                validSleepWordSentCount);
-                                        }
-                                    } else {
-                                        Logger.Error(
-                                            String.format(
-                                                "sleepwords size: %d; woke successes size: %d; suddenlyAwokeIndexs.size: %d; sleepword sent count: %d",
-                                                imageCount,
-                                                wokeSuccesses.size(),
-                                                suddenlyAwokeIndexes.size(),
-                                                validSleepWordSentCount
-                                            )
-                                        );
-                                        throw new Exception("ran out of woke successses");
-                                    }
-                                    // move files
-                                    try {
-                                        File moveMe = new File(sleepWordFileNameOld + "bin");
-                                        if (!moveMe.renameTo(new File(sleepWordFileNameNew + "bin"))) {
-                                            throw new Exception("Failed to rename " + sleepWordFileNameOld + "bin");
-                                        }
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    }
-                                    try {
-                                        File moveMe = new File(sleepWordFileNameOld + "bmp");
-                                        if (!moveMe.renameTo(new File(sleepWordFileNameNew + "bmp"))) {
-                                            throw new Exception("Failed to rename " + sleepWordFileNameOld + "bmp");
-                                        }
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    }
-
-                                } else {
-                                    Logger.Info(String.format(
-                                        "@|red Filtered sleepword sent while awake!! \"%s\" in %s at timestamp %d|@",
-                                        sleepWordGuess,
-                                        fname,
-                                        packet.timestamp));
-                                }
-                            } else {
-                                Logger.Info("skipping a wakeup");
-                            }
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
                         }
                         break;
                     default:
@@ -1353,6 +1148,138 @@ public class Scraper {
             } catch (Exception e) {
                 e.printStackTrace();
                 Logger.Error(String.format("@|red Scraper.processReplays outgoingPackets loop during replay %s on opcode %d at timestamp %d|@", fname, packet.opcode, packet.timestamp));
+            }
+        }
+
+        // go through both incoming & outgoing packets in chronological order, for ease of logic
+        if (Settings.dumpSleepWords) {
+
+            int numberOfPackets = interestingSleepPackets.size();
+            ReplayPacket[] sleepPackets = new ReplayPacket[numberOfPackets];
+
+            // Populate sleepPackets with sorted packets
+            List<ReplayPacket> sortedSleepPackets = new ArrayList<ReplayPacket>(interestingSleepPackets.values());
+            try {
+                Collections.sort(sortedSleepPackets, new ReplayPacketComparator());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            int arrIndex = -1;
+            for (Iterator<ReplayPacket> iterator = sortedSleepPackets.iterator(); iterator.hasNext();) {
+                sleepPackets[++arrIndex] = iterator.next();
+            }
+
+            for (int cur = 0; cur < numberOfPackets; cur++) {
+                Logger.Info(String.format("Timestamp: %d; Opcode: %d;",
+                    sleepPackets[cur].timestamp,
+                    sleepPackets[cur].opcode));
+                ReplayPacket packet = sleepPackets[cur];
+
+                switch (sleepPackets[cur].opcode) {
+                    case PacketBuilder.OPCODE_SLEEP_WORD:
+                        String sleepWordGuess = "";
+                        boolean guessCorrect = false;
+                        boolean loggedOut = false;
+                        boolean awokeEarly = false;
+
+                        if (packet.data.length > 0) {
+
+                            // Find event that ends this sleep session.
+                            // This is the reason for putting everything interesting
+                            // into an array in which we can freely hop between packets btw...
+                            int sleepSessionEnd = -1;
+                            for (int i = cur + 1; i < numberOfPackets && sleepSessionEnd == -1; ++i) {
+                                switch(sleepPackets[i].opcode) {
+                                    case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
+                                        loggedOut = true; // user disconnected while asleep & reconnects in awake state
+                                        break;
+                                    case 45: // CLIENT_SEND_SLEEPWORD_GUESS
+                                        sleepPackets[i].readByte();
+                                        sleepWordGuess = sleepPackets[i].readPaddedString();
+                                        Logger.Info("Found guess: " + sleepWordGuess);
+                                        guessCorrect = true; // not known yet, just setting flag true so it can be set false later
+                                        break;
+                                    case PacketBuilder.OPCODE_SEND_MESSAGE:
+                                        awokeEarly = true;
+                                        break;
+                                    case PacketBuilder.OPCODE_WAKE_UP:
+                                        // unexpectedly woke up, even if there is a good guess
+                                        if (i + 1 < numberOfPackets) {
+                                            if (sleepPackets[i + 1].opcode == PacketBuilder.OPCODE_SEND_MESSAGE) {
+                                                awokeEarly = true;
+                                            }
+                                        }
+                                        sleepSessionEnd = cur;
+                                        break;
+                                    case PacketBuilder.OPCODE_SLEEP_WORD:
+                                        guessCorrect = false;
+                                        sleepSessionEnd = cur;
+                                        break;
+                                }
+                            }
+
+                            String sleepWordFilePath = String.format("%ssleepwords", Settings.scraperOutputPath);
+                            String sleepWordFileName = "";
+
+                            if (guessCorrect && !awokeEarly && !loggedOut) {
+                                sleepWordFileName = String.format("sleep_%s%s_%d.",
+                                    sleepWordGuess,
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            } else if (awokeEarly) {
+                                sleepWordFileName = String.format("sleep_!SUDDENLY-AWOKE!%s_%d.",
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            } else if (!guessCorrect) {
+                                sleepWordFileName = String.format("sleep_!INCORRECT!%s_%s_%d.",
+                                    sleepWordGuess,
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            } else {
+                                sleepWordFileName = String.format("sleep_!LOGGED-OUT!%s_%d.",
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            }
+
+                            byte[] data = new byte[packet.data.length];
+
+                            for (int i = 0; i < packet.data.length; i++) {
+                                data[i] = packet.data[i];
+                                System.out.print(String.format("%x", data[i]));
+                            }
+                            System.out.println();
+
+                            // convert to BMP (mostly for fun)
+                            try {
+                                data = convertImage(data);
+                                File fileName = new File(new File(sleepWordFilePath, "/images/"), sleepWordFileName + "bmp");
+                                try (FileOutputStream fos = new FileOutputStream(fileName)) {
+                                    fos.write(saveBitmap(data));
+                                }
+                            } catch (Exception e) {
+                                //never happens btw
+                                e.printStackTrace();
+                            }
+
+                            // export raw packet data
+                            try {
+                                File fileName = new File(new File(sleepWordFilePath, "/packetData/"), sleepWordFileName + "bin");
+                                try (FileOutputStream fos = new FileOutputStream(fileName)) {
+                                    fos.write(packet.data);
+                                }
+                            } catch (Exception e) {
+                                //never happens btw
+                                e.printStackTrace();
+                            }
+
+                            Logger.Info(String.format("sleepword %d: %d length: %d", cur, packet.opcode, packet.data.length));
+
+                        } else {
+                            Logger.Warn("Zero length packet 117 in " + fname);
+                        }
+                        break;
+                }
+
             }
         }
 
@@ -1506,7 +1433,9 @@ public class Scraper {
         FileUtil.mkdir(Settings.scraperOutputPath);
 
         if (Settings.dumpSleepWords) {
-            FileUtil.mkdir(Settings.scraperOutputPath + "/sleepword");
+            FileUtil.mkdir(Settings.scraperOutputPath + "/sleepwords");
+            FileUtil.mkdir(Settings.scraperOutputPath + "/sleepwords/images");
+            FileUtil.mkdir(Settings.scraperOutputPath + "/sleepwords/packetData");
         }
         Settings.sanitizeOutputPath = Settings.sanitizeBaseOutputPath;
 

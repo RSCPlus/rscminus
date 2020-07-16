@@ -24,6 +24,7 @@ import rscminus.common.MathUtil;
 import rscminus.scraper.client.Class11;
 
 import java.math.BigInteger;
+import java.util.Comparator;
 
 public class ReplayPacket {
     public int timestamp;
@@ -90,9 +91,9 @@ public class ReplayPacket {
 
     public String readPaddedString() {
         if (readByte() == 0) {
-          return readString();
+            return readString();
         } else {
-          throw new IllegalStateException("Padded String didn't begin with null byte!");
+            throw new IllegalStateException("Padded String didn't begin with null byte!");
         }
     }
 
@@ -113,7 +114,7 @@ public class ReplayPacket {
         if (data.length <= 1) {
             return "";
         }
-        while(data[m_position + length] != '\0')
+        while (data[m_position + length] != '\0')
             length++;
         String ret;
         ret = new String(data, m_position, length);
@@ -127,7 +128,7 @@ public class ReplayPacket {
     }
 
     public long readUnsignedInt() {
-        return (((long)readUnsignedByte()) << 24) | (readUnsignedByte() << 16) | (readUnsignedByte() << 8) | readUnsignedByte();
+        return (((long) readUnsignedByte()) << 24) | (readUnsignedByte() << 16) | (readUnsignedByte() << 8) | readUnsignedByte();
     }
 
     public int readUnsignedShort() {
@@ -149,7 +150,7 @@ public class ReplayPacket {
     }
 
     public void writeUnsignedByte(int value) {
-        data[m_position++] = (byte)(value & 0xFF);
+        data[m_position++] = (byte) (value & 0xFF);
     }
 
     public void writeUnsignedShort(int value) {
@@ -157,4 +158,33 @@ public class ReplayPacket {
         writeUnsignedByte(value);
     }
 
+}
+
+class ReplayPacketComparator implements Comparator<ReplayPacket> {
+
+    @Override
+    public int compare(ReplayPacket a, ReplayPacket b) {
+        // this is reverse alphabetical order b/c we display them/in reverse order (y-=12 ea item)
+        int offset = a.timestamp - b.timestamp;
+
+        if (offset > 0) { // item a happened before item b
+            offset = 10;
+        } else if (offset < 0) { // item b happened before item a
+            offset = -10;
+            // items have the same name we would like to group items that are on the same tile as well,
+            // not just having
+            // the same name, so that we can use "last_item" in a useful way
+        } else {
+            int opcodeOffset = a.opcode - b.opcode;
+            if (opcodeOffset > 0) {
+                offset = -5;
+            } else if (opcodeOffset < 0) {
+                offset = 5;
+            } else {
+                offset = 0; // Could check data here to see if they are truly equal, but don't care right now
+                Logger.Info("Packet had same opcode and timestamp as another packet!");
+            }
+        }
+        return offset;
+    }
 }
