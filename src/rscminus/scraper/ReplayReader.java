@@ -399,6 +399,10 @@ public class ReplayReader {
                     replayPacket.timestamp = packetTimestamp;
                 } catch (Exception e) {
                     System.out.println("WARNING: Invalid packet found, trimming replay");
+                    try {
+                        System.out.println(String.format("Invalid length on opcode: %d", replayPacket.opcode));
+                    } catch (Exception e2) {
+                    }
                     return null;
                 }
             }

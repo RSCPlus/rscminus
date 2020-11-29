@@ -20,9 +20,11 @@
 package rscminus.scraper;
 
 import rscminus.common.FileUtil;
+import rscminus.common.JGameData;
 import rscminus.common.Logger;
 import rscminus.common.Settings;
 import rscminus.game.PacketBuilder;
+import rscminus.game.WorldManager;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
 import rscminus.scraper.client.Character;
@@ -72,6 +74,8 @@ public class Scraper {
     public static int npcCount = 0;
     public static int npcCacheCount = 0;
     public static int highestOption = 0;
+
+    public static WorldManager worldManager;
 
     private static Character createNpc(int serverIndex, int type, int x, int y, int sprite) {
         if (npcsServer[serverIndex] == null) {
@@ -259,38 +263,39 @@ public class Scraper {
     //convertImage & saveBitmap are mostly courtesy of aposbot, altered a little
     //used for opcode 117, sleepwords
     private static byte[] convertImage(byte[] data) {
-        int var1 = 1;
-        byte var2 = 0;
-        final byte[] var4 = new byte[10200];
-        int var3;
-        int var5;
-        int var6;
-        for (var3 = 0; var3 < 255; var2 = (byte) (255 - var2)) {
-            var5 = data[var1++] & 255;
-            for (var6 = 0; var6 < var5; ++var6) {
-                var4[var3++] = var2;
+        int dataIndex = 1;
+        byte color = 0;
+        final byte[] imageBytes = new byte[10200];
+        int index;
+        int height;
+        int width;
+        for (index = 0; index < 255; color = (byte) (255 - color)) {
+            height = data[dataIndex++] & 255;
+            for (width = 0; width < height; ++width) {
+                imageBytes[index++] = color;
             }
         }
-        for (var5 = 1; var5 < 40; ++var5) {
-            var6 = 0;
-            while (var6 < 255) {
-                if (var1++ >= data.length - 1)
+        for (height = 1; height < 40; ++height) {
+            width = 0;
+            while (width < 255) {
+                if (dataIndex++ >= data.length - 1)
                     break;
 
-                final int var7 = data[var1] & 255;
-                for (int var8 = 0; var8 < var7; ++var8) {
-                    var4[var3] = var4[var3 - 255];
-                    ++var3;
-                    ++var6;
+                // run length encoded
+                final int rle = data[dataIndex] & 255;
+                for (int i = 0; i < rle; ++i) {
+                    imageBytes[index] = imageBytes[index - 255];
+                    ++index;
+                    ++width;
                 }
-                if (var6 < 255) {
-                    var4[var3] = (byte) (255 - var4[var3 - 255]);
-                    ++var3;
-                    ++var6;
+                if (width < 255) {
+                    imageBytes[index] = (byte) (255 - imageBytes[index - 255]);
+                    ++index;
+                    ++width;
                 }
             }
         }
-        return var4;
+        return imageBytes;
     }
     private static byte[] saveBitmap(byte[] data) throws IOException {
         final ByteArrayOutputStream out = new ByteArrayOutputStream(4096);
@@ -1012,6 +1017,19 @@ public class Scraper {
                                     }
                                 }
                             }
+                        } else if (Settings.checkBoundaryRemoval) {
+                            while (length > 0) {
+                                if (packet.readUnsignedByte() == 255) {
+                                    int x = playerX + packet.readByte();
+                                    int y = playerY + packet.readByte();
+                                    if (worldManager.getViewArea(x, y).getBoundary(x, y) != null) {
+                                        Logger.Info(String.format("@|red BOUNDARY REMOVAL ACTUALLY DID SOMETHING @ %d,%d IN REPLAY %s AT TIMESTAMP %d|@", x, y, fname, packet.timestamp));
+                                    }
+                                    length -= 3;
+                                } else {
+                                    length -= 5;
+                                }
+                            }
                         }
                         break;
                     case PacketBuilder.OPCODE_SLEEP_WORD:
@@ -1140,6 +1158,20 @@ public class Scraper {
                     case 45: // Send Sleepword Guess
                         if (Settings.dumpSleepWords) {
                             interestingSleepPackets.put(interestingSleepPackets.size(), packet);
+                        }
+                        break;
+
+                    case 235: // Send appearance
+                        if (Settings.dumpAppearances) {
+                            System.out.print("Appearance Packet in " + fname + ": ");
+                            try {
+                                for (int i = 0; i < 8; i++) {
+                                    System.out.print(String.format("%d ", packet.readUnsignedByte()));
+                                }
+                            } catch (ArrayIndexOutOfBoundsException e) {
+                                System.out.print(" XXXXX");
+                            }
+                            System.out.println();
                         }
                         break;
                     default:
@@ -1352,6 +1384,12 @@ public class Scraper {
             switch(arg.toLowerCase().substring(0, 2)) {
                 case "-a":
                     appendingToReplay = true;
+                    break;
+                case "-b":
+                    Settings.checkBoundaryRemoval = true;
+                    JGameData.init(true);
+                    worldManager = new WorldManager();
+                    worldManager.init();
                     break;
                 case "-c":
                     Settings.dumpChat = true;

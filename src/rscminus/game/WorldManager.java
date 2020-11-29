@@ -195,7 +195,7 @@ public class WorldManager {
         try {
             DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(new File("scenery.bin"))));
             int count = in.readInt();
-            System.out.println("count: " + count);
+            System.out.println("scenery count: " + count);
             for (int i = 0; i < count; i++) {
                 int x = in.readUnsignedShort();
                 int y = in.readUnsignedShort();
@@ -205,7 +205,7 @@ public class WorldManager {
             in.close();
             in = new DataInputStream(new BufferedInputStream(new FileInputStream(new File("boundaries.bin"))));
             count = in.readInt();
-            System.out.println("count: " + count);
+            System.out.println("boundary count: " + count);
             for (int i = 0; i < count; i++) {
                 int x = in.readUnsignedShort();
                 int y = in.readUnsignedShort();

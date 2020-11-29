@@ -53,6 +53,7 @@ public class Server implements Runnable {
         // Initialize rscminus
         Crypto.init();
         JGameData.init(true);
+        if (!SleepWordGenerator.init()) { Logger.Warn("sleep generator init failed"); }
         ChatCipher.init();
         if (!ChatFilter.init()) { Logger.Warn("Chat censor init failed"); }
 
@@ -112,6 +113,8 @@ public class Server implements Runnable {
         } catch (Exception e) {
         }
 
+        m_playerManager.saveAllPlayers();
+
         System.out.println("Server exited successfully");
     }
 
@@ -135,5 +138,9 @@ public class Server implements Runnable {
         m_instance = new Server();
         m_thread = new Thread(m_instance);
         m_thread.start();
+    }
+
+    public void shutdownGracefully() {
+        m_running = false;
     }
 }

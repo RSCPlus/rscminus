@@ -107,16 +107,13 @@ public class NetworkStream {
     }
 
     public void endPacket() {
-        int length = m_position - m_packetStart - 2;
+        int length = m_position - m_packetStart - 2; // length of packet excluding length short
         if (length >= 160) {
             m_buffer[m_packetStart] = (byte)(length / 256 + 160);
             m_buffer[m_packetStart + 1] = (byte)(length & 0xFF);
         } else {
             m_buffer[m_packetStart] = (byte)length;
-            if (length == 1)
-                m_buffer[m_packetStart + 1] = m_buffer[m_packetStart + 2];
-            else
-                m_buffer[m_packetStart + 1] = m_buffer[m_packetStart + length + 1];
+            m_buffer[m_packetStart + 1] = m_buffer[m_packetStart + length + 1]; // Last byte of payload goes here strangely, after length & before opcode
             m_position--;
         }
     }
@@ -294,11 +291,14 @@ public class NetworkStream {
 
         byte data[] = stream.getByteArray();
         if (length < 160) {
-            stream.seek(0);
+            stream.seek(0); // m_position = 0;
+            // copies all data except packet length to data
             System.arraycopy(m_buffer, m_position + 1, data, 0, length - 1);
+            // put length at the end of current packet
             data[length - 1] = m_buffer[m_position];
         } else {
             stream.seek(0);
+            // just copy the buffer in
             System.arraycopy(m_buffer, m_position, data, 0, length);
         }
 
