@@ -120,6 +120,7 @@ public class QueuedPlayer {
 
         // Successful login
         if (loginResponse == LOGIN_SUCCESS) {
+            int saveInfoLoaded = saveInfo.load(loginInfo);
             loginResponse = m_playerManager.addPlayer(m_socket, loginInfo, saveInfo);
 
             // TODO: Add mod priviledges

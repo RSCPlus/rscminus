@@ -134,8 +134,14 @@ public class Game {
     public static final int STAT_PRAYER = 5;
     public static final int STAT_MAGIC = 6;
     public static final int STAT_COUNT = 18;
+    public static final String[] STAT_NAMES = { "attack", "defense", "strength", "hitpoints", "ranged", "prayer", "magic" }; // TODO research to make sure all spellings are correct for all skills as typed in the levelup messages
 
     // Chat Types
+    public static final int CHAT_NONE = 0;
     public static final int CHAT_QUEST = 3;
     public static final int CHAT_CHAT = 4;
+
+    // Precomputed XP Table
+    public static final int[] xpLevelTable = { 0, 332, 696, 1104, 1552, 2048, 2600, 3204, 3876, 4616, 5432, 6336, 7332, 8428, 9644, 10984, 12460, 14092, 15892, 17880, 20072, 22496, 25164, 28112, 31368, 34960, 38920, 43296, 48124, 53452, 59332, 65824, 72988, 80896, 89624, 99260, 109892, 121632, 134592, 148896, 164684, 182116, 201356, 222596, 246048, 271932, 300508, 332056, 366884, 405332, 447780, 494640, 546376, 603488, 666544, 736160, 813016, 897864, 991544, 1094968, 1209152, 1335216, 1474396, 1628060, 1797712, 1985016, 2191812, 2420128, 2672204, 2950508, 3257780, 3597028, 3971580, 4385112, 4841684, 5345772, 5902324, 6516800, 7195232, 7944272, 8771272, 9684348, 10692456, 11805492, 13034376, 14391168, 15889176, 17543104, 19369180, 21385328, 23611324, 26069012, 28782516, 31778456, 35086232, 38738308, 42770516, 47222424, 52137724 };
+
 }

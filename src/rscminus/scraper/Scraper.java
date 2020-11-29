@@ -20,19 +20,23 @@
 package rscminus.scraper;
 
 import rscminus.common.FileUtil;
+import rscminus.common.JGameData;
 import rscminus.common.Logger;
 import rscminus.common.Settings;
 import rscminus.game.PacketBuilder;
+import rscminus.game.WorldManager;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
 import rscminus.scraper.client.Character;
 
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.ArrayList;
 
 import static rscminus.common.Settings.initDir;
 import static rscminus.scraper.ReplayEditor.appendingToReplay;
@@ -70,6 +74,8 @@ public class Scraper {
     public static int npcCount = 0;
     public static int npcCacheCount = 0;
     public static int highestOption = 0;
+
+    public static WorldManager worldManager;
 
     private static Character createNpc(int serverIndex, int type, int x, int y, int sprite) {
         if (npcsServer[serverIndex] == null) {
@@ -254,6 +260,141 @@ public class Scraper {
         return before;
     }
 
+    //convertImage & saveBitmap are mostly courtesy of aposbot, altered a little
+    //used for opcode 117, sleepwords
+    private static byte[] convertImage(byte[] data) {
+        int dataIndex = 1;
+        byte color = 0;
+        final byte[] imageBytes = new byte[10200];
+        int index;
+        int height;
+        int width;
+        for (index = 0; index < 255; color = (byte) (255 - color)) {
+            height = data[dataIndex++] & 255;
+            for (width = 0; width < height; ++width) {
+                imageBytes[index++] = color;
+            }
+        }
+        for (height = 1; height < 40; ++height) {
+            width = 0;
+            while (width < 255) {
+                if (dataIndex++ >= data.length - 1)
+                    break;
+
+                // run length encoded
+                final int rle = data[dataIndex] & 255;
+                for (int i = 0; i < rle; ++i) {
+                    imageBytes[index] = imageBytes[index - 255];
+                    ++index;
+                    ++width;
+                }
+                if (width < 255) {
+                    imageBytes[index] = (byte) (255 - imageBytes[index - 255]);
+                    ++index;
+                    ++width;
+                }
+            }
+        }
+        return imageBytes;
+    }
+    private static byte[] saveBitmap(byte[] data) throws IOException {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream(4096);
+        out.write(66);
+        out.write(77);
+        short var3 = 1342;
+        out.write(var3 & 255);
+        out.write(var3 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        byte var10 = 62;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 40;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var3 = 256;
+        out.write(var3 & 255);
+        out.write(var3 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 40;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 1;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        var10 = 1;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        var10 = 0;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 0;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 0;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 0;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 0;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        var10 = 0;
+        out.write(var10 & 255);
+        out.write(var10 >> 8 & 255);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        out.write(0);
+        out.write(255);
+        out.write(255);
+        out.write(255);
+        out.write(0);
+        int var4 = 9945;
+        for (int var5 = 0; var5 < 40; ++var5) {
+            for (int var6 = 0; var6 < 32; ++var6) {
+                byte var7 = 0;
+                for (int var8 = 0; var8 < 8; ++var8) {
+                    var7 = (byte) (2 * var7);
+                    if (var6 != 31 || var8 != 7) {
+                        if (data[var4] != 0) {
+                            ++var7;
+                        }
+                        ++var4;
+                    }
+                }
+                out.write(var7);
+            }
+            var4 -= 510;
+        }
+        out.close();
+        return out.toByteArray();
+    }
+
     private static void dumpScenery(String fname) {
         int sceneryCount = 0;
         for (HashMap.Entry<Integer, Integer> entry : m_sceneryLocs.entrySet()) {
@@ -428,6 +569,8 @@ public class Scraper {
         int op234type1EchoCount = 0;
         int sendPMEchoCount = 0;
 
+        HashMap<Integer, ReplayPacket> interestingSleepPackets = new HashMap<Integer, ReplayPacket>();
+
         // Process incoming packet
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
@@ -437,6 +580,11 @@ public class Scraper {
                 switch (packet.opcode) {
                     case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
                         Logger.Info("loginresponse: " + packet.data[0] + " (timestamp: " + packet.timestamp + ")");
+
+                        if (Settings.dumpSleepWords) {
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
+                        }
+
                         break;
                     case PacketBuilder.OPCODE_FLOOR_SET:
                         localPID = packet.readUnsignedShort();
@@ -446,35 +594,43 @@ public class Scraper {
                         floorYOffset = packet.readUnsignedShort();
                         break;
                     case PacketBuilder.OPCODE_SEND_MESSAGE:
-                        if (Settings.dumpMessages) {
+                        if (Settings.dumpMessages || Settings.dumpSleepWords) {
                             int type = packet.readUnsignedByte();
                             int infoContained = packet.readUnsignedByte();
 
                             String sendMessage = packet.readPaddedString();
 
-                            String sender = "";
-                            String clan = "";
-                            String color = "";
-                            if ((infoContained & 1) != 0) {
-                                sender = packet.readPaddedString();
-                                clan = packet.readPaddedString();
+                            if (Settings.dumpSleepWords) {
+                                if (sendMessage.equals("You are unexpectedly awoken! You still feel tired")) {
+                                    interestingSleepPackets.put(interestingSleepPackets.size(), packet);
+                                }
                             }
 
-                            if ((infoContained & 2) != 0) {
-                                color = packet.readPaddedString();
-                            }
-                            m_messageSQL.put(m_messageSQL.size(),
+                            if (Settings.dumpMessages) {
+                                String sender = "";
+                                String clan = "";
+                                String color = "";
+                                if ((infoContained & 1) != 0) {
+                                    sender = packet.readPaddedString();
+                                    clan = packet.readPaddedString();
+                                }
+
+                                if ((infoContained & 2) != 0) {
+                                    color = packet.readPaddedString();
+                                }
+                                m_messageSQL.put(m_messageSQL.size(),
                                     "INSERT INTO `rscMessages`.`SEND_MESSAGE` (`replayIndex`, `timestamp`, `messageType`, `infoContained`, `message`, `sender`, `sender2`, `color`) VALUES " +
-                                            String.format("('%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s');\n",
-                                                    Scraper.replaysProcessedCount,
-                                                    packet.timestamp,
-                                                    type,
-                                                    infoContained,
-                                                    sendMessage.replaceAll("'", "''"),
-                                                    sender,
-                                                    clan,
-                                                    color)
-                            );
+                                        String.format("('%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s');\n",
+                                            Scraper.replaysProcessedCount,
+                                            packet.timestamp,
+                                            type,
+                                            infoContained,
+                                            sendMessage.replaceAll("'", "''"),
+                                            sender,
+                                            clan,
+                                            color)
+                                );
+                            }
                         }
                         break;
                     case PacketBuilder.OPCODE_DIALOGUE_OPTIONS:
@@ -861,6 +1017,29 @@ public class Scraper {
                                     }
                                 }
                             }
+                        } else if (Settings.checkBoundaryRemoval) {
+                            while (length > 0) {
+                                if (packet.readUnsignedByte() == 255) {
+                                    int x = playerX + packet.readByte();
+                                    int y = playerY + packet.readByte();
+                                    if (worldManager.getViewArea(x, y).getBoundary(x, y) != null) {
+                                        Logger.Info(String.format("@|red BOUNDARY REMOVAL ACTUALLY DID SOMETHING @ %d,%d IN REPLAY %s AT TIMESTAMP %d|@", x, y, fname, packet.timestamp));
+                                    }
+                                    length -= 3;
+                                } else {
+                                    length -= 5;
+                                }
+                            }
+                        }
+                        break;
+                    case PacketBuilder.OPCODE_SLEEP_WORD:
+                        if (Settings.dumpSleepWords) {
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
+                        }
+                        break;
+                    case PacketBuilder.OPCODE_WAKE_UP:
+                        if (Settings.dumpSleepWords) {
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
                         }
                         break;
                     case PacketBuilder.OPCODE_CLOSE_CONNECTION_NOTIFY:
@@ -976,12 +1155,163 @@ public class Scraper {
                             );
                         }
                         break;
+                    case 45: // Send Sleepword Guess
+                        if (Settings.dumpSleepWords) {
+                            interestingSleepPackets.put(interestingSleepPackets.size(), packet);
+                        }
+                        break;
+
+                    case 235: // Send appearance
+                        if (Settings.dumpAppearances) {
+                            System.out.print("Appearance Packet in " + fname + ": ");
+                            try {
+                                for (int i = 0; i < 8; i++) {
+                                    System.out.print(String.format("%d ", packet.readUnsignedByte()));
+                                }
+                            } catch (ArrayIndexOutOfBoundsException e) {
+                                System.out.print(" XXXXX");
+                            }
+                            System.out.println();
+                        }
+                        break;
                     default:
                         break;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
                 Logger.Error(String.format("@|red Scraper.processReplays outgoingPackets loop during replay %s on opcode %d at timestamp %d|@", fname, packet.opcode, packet.timestamp));
+            }
+        }
+
+        // go through both incoming & outgoing packets in chronological order, for ease of logic
+        if (Settings.dumpSleepWords) {
+
+            int numberOfPackets = interestingSleepPackets.size();
+            ReplayPacket[] sleepPackets = new ReplayPacket[numberOfPackets];
+
+            // Populate sleepPackets with sorted packets
+            List<ReplayPacket> sortedSleepPackets = new ArrayList<ReplayPacket>(interestingSleepPackets.values());
+            try {
+                Collections.sort(sortedSleepPackets, new ReplayPacketComparator());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            int arrIndex = -1;
+            for (Iterator<ReplayPacket> iterator = sortedSleepPackets.iterator(); iterator.hasNext();) {
+                sleepPackets[++arrIndex] = iterator.next();
+            }
+
+            for (int cur = 0; cur < numberOfPackets; cur++) {
+                Logger.Info(String.format("Timestamp: %d; Opcode: %d;",
+                    sleepPackets[cur].timestamp,
+                    sleepPackets[cur].opcode));
+                ReplayPacket packet = sleepPackets[cur];
+
+                switch (sleepPackets[cur].opcode) {
+                    case PacketBuilder.OPCODE_SLEEP_WORD:
+                        String sleepWordGuess = "";
+                        boolean guessCorrect = false;
+                        boolean loggedOut = false;
+                        boolean awokeEarly = false;
+
+                        if (packet.data.length > 0) {
+
+                            // Find event that ends this sleep session.
+                            // This is the reason for putting everything interesting
+                            // into an array in which we can freely hop between packets btw...
+                            int sleepSessionEnd = -1;
+                            for (int i = cur + 1; i < numberOfPackets && sleepSessionEnd == -1; ++i) {
+                                switch(sleepPackets[i].opcode) {
+                                    case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
+                                        loggedOut = true; // user disconnected while asleep & reconnects in awake state
+                                        break;
+                                    case 45: // CLIENT_SEND_SLEEPWORD_GUESS
+                                        sleepPackets[i].readByte();
+                                        sleepWordGuess = sleepPackets[i].readPaddedString();
+                                        Logger.Info("Found guess: " + sleepWordGuess);
+                                        guessCorrect = true; // not known yet, just setting flag true so it can be set false later
+                                        break;
+                                    case PacketBuilder.OPCODE_SEND_MESSAGE:
+                                        awokeEarly = true;
+                                        break;
+                                    case PacketBuilder.OPCODE_WAKE_UP:
+                                        // unexpectedly woke up, even if there is a good guess
+                                        if (i + 1 < numberOfPackets) {
+                                            if (sleepPackets[i + 1].opcode == PacketBuilder.OPCODE_SEND_MESSAGE) {
+                                                awokeEarly = true;
+                                            }
+                                        }
+                                        sleepSessionEnd = cur;
+                                        break;
+                                    case PacketBuilder.OPCODE_SLEEP_WORD:
+                                        guessCorrect = false;
+                                        sleepSessionEnd = cur;
+                                        break;
+                                }
+                            }
+
+                            String sleepWordFilePath = String.format("%ssleepwords", Settings.scraperOutputPath);
+                            String sleepWordFileName = "";
+
+                            if (guessCorrect && !awokeEarly && !loggedOut) {
+                                sleepWordFileName = String.format("sleep_%s%s_%d.",
+                                    sleepWordGuess,
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            } else if (awokeEarly) {
+                                sleepWordFileName = String.format("sleep_!SUDDENLY-AWOKE!%s_%d.",
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            } else if (!guessCorrect) {
+                                sleepWordFileName = String.format("sleep_!INCORRECT!%s_%s_%d.",
+                                    sleepWordGuess,
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            } else {
+                                sleepWordFileName = String.format("sleep_!LOGGED-OUT!%s_%d.",
+                                    fname.replaceFirst(Settings.sanitizePath, "").replaceAll("/", "_"),
+                                    cur);
+                            }
+
+                            byte[] data = new byte[packet.data.length];
+
+                            for (int i = 0; i < packet.data.length; i++) {
+                                data[i] = packet.data[i];
+                                System.out.print(String.format("%x", data[i]));
+                            }
+                            System.out.println();
+
+                            // convert to BMP (mostly for fun)
+                            try {
+                                data = convertImage(data);
+                                File fileName = new File(new File(sleepWordFilePath, "/images/"), sleepWordFileName + "bmp");
+                                try (FileOutputStream fos = new FileOutputStream(fileName)) {
+                                    fos.write(saveBitmap(data));
+                                }
+                            } catch (Exception e) {
+                                //never happens btw
+                                e.printStackTrace();
+                            }
+
+                            // export raw packet data
+                            try {
+                                File fileName = new File(new File(sleepWordFilePath, "/packetData/"), sleepWordFileName + "bin");
+                                try (FileOutputStream fos = new FileOutputStream(fileName)) {
+                                    fos.write(packet.data);
+                                }
+                            } catch (Exception e) {
+                                //never happens btw
+                                e.printStackTrace();
+                            }
+
+                            Logger.Info(String.format("sleepword %d: %d length: %d", cur, packet.opcode, packet.data.length));
+
+                        } else {
+                            Logger.Warn("Zero length packet 117 in " + fname);
+                        }
+                        break;
+                }
+
             }
         }
 
@@ -1044,6 +1374,7 @@ public class Scraper {
         System.out.println("\t-p\t\t\tSanitize public chat");
         System.out.println("\t-s\t\t\tExport sanitized replays");
         System.out.println("\t-v<0-" + ReplayEditor.VERSION + ">\t\t\tSet sanitizer replay version (Default is original replay version)");
+        System.out.println("\t-w\t\t\tDump Sleepwords to BMP and BIN files");
         System.out.println("\t-x\t\t\tSanitize private chat");
         System.out.println("\t-z\t\t\tProcess replays even if they're not authentic");
     }
@@ -1053,6 +1384,12 @@ public class Scraper {
             switch(arg.toLowerCase().substring(0, 2)) {
                 case "-a":
                     appendingToReplay = true;
+                    break;
+                case "-b":
+                    Settings.checkBoundaryRemoval = true;
+                    JGameData.init(true);
+                    worldManager = new WorldManager();
+                    worldManager.init();
                     break;
                 case "-c":
                     Settings.dumpChat = true;
@@ -1095,6 +1432,10 @@ public class Scraper {
                         return false;
                     }
                     break;
+                case "-w":
+                    Settings.dumpSleepWords = true;
+                    Logger.Info("dump sleepwords set");
+                    break;
                 case "-x":
                     Settings.sanitizePrivateChat = true;
                     Logger.Info("sanitize Private Chat set");
@@ -1128,6 +1469,12 @@ public class Scraper {
         Settings.sanitizeBaseOutputPath = Settings.Dir.JAR + "/strippedReplays";
         Settings.scraperOutputPath = Settings.Dir.JAR + "/dump/";
         FileUtil.mkdir(Settings.scraperOutputPath);
+
+        if (Settings.dumpSleepWords) {
+            FileUtil.mkdir(Settings.scraperOutputPath + "/sleepwords");
+            FileUtil.mkdir(Settings.scraperOutputPath + "/sleepwords/images");
+            FileUtil.mkdir(Settings.scraperOutputPath + "/sleepwords/packetData");
+        }
         Settings.sanitizeOutputPath = Settings.sanitizeBaseOutputPath;
 
         if (Settings.dumpNpcLocs) {
@@ -1201,6 +1548,7 @@ public class Scraper {
                     Settings.dumpNpcLocs ||
                     Settings.dumpMessages ||
                     Settings.dumpChat ||
+                    Settings.dumpSleepWords ||
                     Settings.sanitizeReplays
             ) {
                 strip();
