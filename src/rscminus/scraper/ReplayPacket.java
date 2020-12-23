@@ -135,6 +135,14 @@ public class ReplayPacket {
         return (readUnsignedByte() << 8) | readUnsignedByte();
     }
 
+    public long readUnsignedInt3() {
+        if (data[m_position] >= 0) {
+            return readUnsignedShort();
+        } else {
+            return readUnsignedInt() & Integer.MAX_VALUE;
+        }
+    }
+
     public int readUnsignedShortLE() {
         int a = readUnsignedByte();
         int b = readUnsignedByte() << 8;

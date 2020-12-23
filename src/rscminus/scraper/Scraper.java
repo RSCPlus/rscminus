@@ -50,6 +50,9 @@ public class Scraper {
     private static HashMap<Integer, String> m_replayDictionarySQL = new HashMap<Integer, String>();
     private static HashMap<Integer, String> m_chatSQL = new HashMap<Integer, String>();
     private static HashMap<Integer, String> m_messageSQL = new HashMap<Integer, String>();
+    private static HashMap<Integer, String> m_inventorySQL = new HashMap<Integer, String>();
+    private static HashMap<Integer, String> m_damageSQL = new HashMap<Integer, String>();
+
 
     private static final int SCENERY_BLANK = 65536;
 
@@ -74,6 +77,17 @@ public class Scraper {
     public static int npcCount = 0;
     public static int npcCacheCount = 0;
     public static int highestOption = 0;
+    public static int highestStoreStock = 0;
+
+    public static int[] inventoryItems = new int[30];
+    public static long[] inventoryStackAmounts = new long[30];
+    public static int[] inventoryItemEquipped = new int[30];
+    public static int[] inventoryItemsAllCount = new int[1290];
+    public static int lastAmmo = -1;
+
+    public static int[] playerBaseStat = new int[18];
+    public static int[] playerCurStat = new int[18];
+    public static long[] playerXP = new long[18];
 
     public static WorldManager worldManager;
 
@@ -550,6 +564,7 @@ public class Scraper {
         int localPID = -1;
         int playerX = -1;
         int playerY = -1;
+        int playerAnim = -1;
         int planeX = -1;
         int planeY = -1;
         int planeFloor = -1;
@@ -568,6 +583,14 @@ public class Scraper {
 
         int op234type1EchoCount = 0;
         int sendPMEchoCount = 0;
+        for (int slot = 0; slot < 30; slot++) {
+            inventoryItems[slot] = -1;
+            inventoryStackAmounts[slot] = -1;
+            inventoryItemEquipped[slot] = -1;
+        }
+        for (int itemID = 0; itemID < 1290; itemID++) {
+            inventoryItemsAllCount[itemID] = 0;
+        }
 
         HashMap<Integer, ReplayPacket> interestingSleepPackets = new HashMap<Integer, ReplayPacket>();
 
@@ -659,13 +682,15 @@ public class Scraper {
                         packet.startBitmask();
                         playerX = packet.readBitmask(11);
                         playerY = packet.readBitmask(13);
+                        playerAnim = packet.readBitmask(4);
+                        packet.readBitmask(4);
                         packet.endBitmask();
                         if (Settings.dumpScenery) {
                             fillView(playerX, playerY, sceneryLocs);
                         }
-                        packet.skip(packet.data.length - 3);
+                        packet.skip(packet.data.length - 4);
                         break;
-                    case PacketBuilder.OPCODE_UPDATE_PLAYERS: {
+                    case PacketBuilder.OPCODE_UPDATE_PLAYERS: { // 234
                         int originalPlayerCount = packet.readUnsignedShort();
                         int playerCount = originalPlayerCount;
                         for (int i = 0; i < originalPlayerCount; i++) {
@@ -698,13 +723,28 @@ public class Scraper {
                                     playerCount--;
                                     continue;
                                 }
-                            } else if (updateType == 2) { // damage
+                            } else if (updateType == 2) { // damage taken
                                 packet.skip(3);
-                            } else if (updateType == 3) {
-                                packet.skip(4);
-                            } else if (updateType == 4) {
-                                packet.skip(4);
-                            } else if (updateType == 5) {
+                            } else if (updateType == 3) { // show projectile towards an NPC
+                                int sprite = packet.readUnsignedShort();
+                                int shooterIndex = packet.readUnsignedShort();
+                                if (Settings.dumpNPCDamage) {
+                                    if (npcsServer[shooterIndex] != null) {
+                                        npcsServer[shooterIndex].attackingPlayerServerIndex = pid;
+                                        npcsServer[shooterIndex].incomingProjectileSprite = sprite;
+                                    } else {
+                                        // NPC possibly off screen & being shot by player closer to the NPC.
+                                    }
+                                }
+                            } else if (updateType == 4) { // show projectile towards a player
+                                int sprite = packet.readUnsignedShort();
+                                int shooterIndex = packet.readUnsignedShort();
+                                if (Settings.dumpNPCDamage) {
+                                    if (sprite != 3) { // gnome ball
+                                        Logger.Info(pid + " shot at " + shooterIndex + " with " + sprite);
+                                    }
+                                }
+                            } else if (updateType == 5) { // equipment change
                                 packet.skip(2);
                                 packet.readPaddedString();
                                 packet.readPaddedString();
@@ -725,6 +765,7 @@ public class Scraper {
                                     );
                                 }
                             } else {
+                                Logger.Info("Hit unanticipated update type " + updateType);
                                 packet.skip(2);
                                 packet.readPaddedString();
                                 packet.readPaddedString();
@@ -825,7 +866,7 @@ public class Scraper {
                         if (Settings.sanitizePrivateChat)
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                         break;
-                    case PacketBuilder.OPCODE_CREATE_NPC:
+                    case PacketBuilder.OPCODE_CREATE_NPC: // 79
                         if (Settings.needNpcCreation) {
                             npcCacheCount = npcCount;
                             npcCount = 0;
@@ -919,8 +960,8 @@ public class Scraper {
                         }
 
                         break;
-                    case PacketBuilder.OPCODE_UPDATE_NPC:
-                        if (Settings.dumpMessages) {
+                    case PacketBuilder.OPCODE_UPDATE_NPC: // 104
+                        if (Settings.dumpMessages || Settings.dumpNPCDamage) {
                             int updateNpcCount = packet.readUnsignedShort();
                             for (int i = 0; i < updateNpcCount; i++) {
                                 int npcServerIndex = packet.readUnsignedShort();
@@ -928,16 +969,123 @@ public class Scraper {
                                 if (updateType == 1) { // npc chat
                                     int pidTalkingTo = packet.readUnsignedShort();
                                     String updateNPCMessage = packet.readRSCString();
-                                    m_messageSQL.put(m_messageSQL.size(),
+                                    if (Settings.dumpMessages) {
+                                        m_messageSQL.put(m_messageSQL.size(),
                                             "INSERT INTO `rscMessages`.`UPDATE_NPCS_TYPE_1` (`replayIndex`, `timestamp`, `npcId`, `pidTalkingTo`, `message`) VALUES " +
-                                                    String.format("('%d', '%d', '%d', '%d', '%s');\n",
-                                                            Scraper.replaysProcessedCount,
-                                                            packet.timestamp,
-                                                            npcsServer[npcServerIndex].npcId,
-                                                            pidTalkingTo,
-                                                            updateNPCMessage.replaceAll("'", "''")
-                                                    )
-                                    );
+                                                String.format("('%d', '%d', '%d', '%d', '%s');\n",
+                                                    Scraper.replaysProcessedCount,
+                                                    packet.timestamp,
+                                                    npcsServer[npcServerIndex].npcId,
+                                                    pidTalkingTo,
+                                                    updateNPCMessage.replaceAll("'", "''")
+                                                )
+                                        );
+                                    }
+                                } else if (updateType == 2) { // combat update
+                                    int npcDamageTaken = packet.readUnsignedByte();
+                                    int npcCurrentHP = packet.readUnsignedByte();
+                                    int npcMaxHP = packet.readUnsignedByte();
+                                    if (Settings.dumpNPCDamage) {
+                                        // determine how the npc is being attacked
+                                        if (npcsServer[npcServerIndex] != null) {
+
+                                            if (npcsServer[npcServerIndex].animationNext >= 8) {
+                                                // in melee combat, but not necessarily have taken melee damage, could be spell
+                                                if (npcsServer[npcServerIndex].incomingProjectileSprite != -1) {
+                                                    // TODO: can we assume that this means that this specific damage update was in fact ranged/mage damage?
+                                                    npcsServer[npcServerIndex].attackingPlayerServerIndex = -1;
+                                                    npcsServer[npcServerIndex].incomingProjectileSprite = -1;
+                                                }
+
+                                                // determine who is possibly attacking
+
+                                                // need to check if local player shares same X & Y coordinate as this NPC & has melee stance
+                                                if (playerX == npcsServer[npcServerIndex].currentX && playerY == npcsServer[npcServerIndex].currentY && playerAnim >= 8) {
+                                                    // possible & likely that player is the same player attacking NPC, need to check there aren't 2 fights on the same tile
+                                                }
+                                            } else {
+                                                // not possible for this to be melee damage :-)
+                                                switch (npcsServer[npcServerIndex].incomingProjectileSprite) {
+                                                    case -1:
+                                                        Logger.Info("incoming projectile sprite not set, but npc was damaged while not in melee combat");
+                                                        break;
+                                                    case 1: // magic projectile
+                                                        if (npcsServer[npcServerIndex].attackingPlayerServerIndex == localPID) {
+                                                            // must determine the spell that was used
+                                                            // must determine mage level & magic bonus
+                                                        } else {
+                                                            // useless, since we don't know what spell was used
+                                                        }
+                                                        break;
+                                                    case 2: // ranged projectile
+                                                        if (npcsServer[npcServerIndex].attackingPlayerServerIndex == localPID) {
+                                                            // best case scenario. We know who is attacking, that it is definitely ranged, and all stats
+
+                                                            // determine bow wielded; might not exist if spear, dart, throwing knife
+                                                            int bow = -1;
+                                                            for (int slot = 0; slot < 30; slot++) {
+                                                                if (inventoryItemEquipped[slot] == 1) {
+                                                                    switch (inventoryItems[slot]) {
+                                                                        case 59:
+                                                                        case 60:
+                                                                        case 188:
+                                                                        case 189:
+                                                                        case 648:
+                                                                        case 649:
+                                                                        case 650:
+                                                                        case 651:
+                                                                        case 652:
+                                                                        case 653:
+                                                                        case 654:
+                                                                        case 655:
+                                                                        case 656:
+                                                                        case 657:
+                                                                            bow = inventoryItems[slot];
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            m_damageSQL.put(m_damageSQL.size(),
+                                                                "INSERT INTO `rscDamage`.`unambiguousRanged` (`replayPath`, `timestamp`, `npcId`, `damageTaken`, `currentHP`, `maxHP`, `lastAmmo`, `bow`, `curRangedStat`) VALUES " +
+                                                                    String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d');\n",
+                                                                        fname.replaceFirst(Settings.sanitizePath, "").replaceAll("'", "''"),
+                                                                        packet.timestamp,
+                                                                        npcsServer[npcServerIndex].npcId,
+                                                                        npcDamageTaken,
+                                                                        npcCurrentHP,
+                                                                        npcMaxHP,
+                                                                        lastAmmo, // arrow/bolt/knife/dart/spear was determined in inventory updates
+                                                                        bow,
+                                                                        playerCurStat[4] // ranged level
+                                                                    )
+                                                            );
+
+                                                        } else {
+                                                            // much less useful, since we don't know player's ranged level.
+                                                            // arrow could still be sometimes determined if player doesn't pick it up
+                                                            // and then we could maybe see the expected distribution of hits for some unknown level
+                                                        }
+                                                        break;
+                                                    case 3: // gnomeball
+                                                        break;
+                                                    case 4: // iban blast
+                                                        break;
+                                                    case 5: // cannonball
+                                                        break;
+                                                    case 6: // god spell
+                                                        break;
+                                                    default:
+                                                        Logger.Info("unknown projectile, shouldn't be possible");
+                                                        break;
+                                                }
+
+                                                npcsServer[npcServerIndex].attackingPlayerServerIndex = -1;
+                                                npcsServer[npcServerIndex].incomingProjectileSprite = -1;
+                                            }
+                                        } else {
+                                            // some other player possibly shooting an an NPC off-screen that we don't know about?
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1047,6 +1195,144 @@ public class Scraper {
                             packet.opcode = ReplayEditor.VIRTUAL_OPCODE_NOP;
                         }
                         break;
+                    case PacketBuilder.OPCODE_SHOW_SHOP:
+                        if (Settings.dumpShops) {
+                            int shopItemCount = packet.readUnsignedByte();
+                            byte shopType = packet.readByte();
+                            int sellpricemod = packet.readUnsignedByte();
+                            int buypricemod = packet.readUnsignedByte();
+                            int priceMultiplier = packet.readUnsignedByte();
+                            for (int index = 0; index < shopItemCount; ++ index) {
+                                int itemId = packet.readUnsignedShort();
+                                int itemCount = packet.readUnsignedShort();
+                                int itemPrice = packet.readUnsignedShort();
+
+                                if (itemCount > highestStoreStock) {
+                                    Logger.Info("New max amount found: " + itemCount + " in replay " + fname);
+                                    highestStoreStock = itemCount;
+                                }
+                            }
+                        }
+                        break;
+                    case PacketBuilder.OPCODE_SET_INVENTORY: // 53
+                        if (Settings.dumpInventories || Settings.dumpNPCDamage) {
+                            int inventoryItemCount = packet.readUnsignedByte();
+
+                            inventoryItemsAllCount = new int[1290];
+                            for (int i=0; i < 1290; i++) {
+                                inventoryItemsAllCount[i] = 0;
+                            }
+
+                            for (int slot = 0; slot < inventoryItemCount; slot++) {
+                                int itemIDAndEquipped = packet.readUnsignedShort();
+                                int equipped = ((itemIDAndEquipped >> 15) & 0x1);
+                                int itemID = itemIDAndEquipped & 0x7FFF;
+                                long itemStack = 1;
+                                if (JGameData.itemStackable[itemID]) {
+                                    itemStack = packet.readUnsignedInt3();
+                                }
+                                if (Settings.dumpInventories) {
+                                    m_inventorySQL.put(m_inventorySQL.size(),
+                                        "INSERT INTO `rscMessages`.`INVENTORIES` (`replayName`, `timestamp`, `slot`, `equipped`, `itemID`, `amount`, `opcode`) VALUES " +
+                                            String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d');\n",
+                                                fname,
+                                                packet.timestamp,
+                                                slot,
+                                                equipped,
+                                                itemID,
+                                                itemStack,
+                                                packet.opcode)
+                                    );
+                                }
+
+                                inventoryItemsAllCount[itemID] += itemStack;
+
+                                inventoryItems[slot] = itemID;
+                                inventoryStackAmounts[slot] = itemStack;
+                                inventoryItemEquipped[slot] = equipped;
+                            }
+                        }
+                        break;
+                    case PacketBuilder.OPCODE_SET_INVENTORY_SLOT: // 90
+                        if (packet.data == null) {
+                            break;
+                        }
+
+                        if (Settings.dumpInventories || Settings.dumpNPCDamage) {
+                            int slot = packet.readUnsignedByte();
+                            int itemIDAndEquipped = packet.readUnsignedShort();
+                            int equipped = ((itemIDAndEquipped >> 15) & 0x1);
+                            int itemID = itemIDAndEquipped & 0x7FFF;
+                            long itemStack = 1;
+                            if (JGameData.itemStackable[itemID]) {
+                                itemStack = packet.readUnsignedInt3();
+                            }
+
+                            if (Settings.dumpInventories) {
+                                m_inventorySQL.put(m_inventorySQL.size(),
+                                    "INSERT INTO `rscMessages`.`INVENTORIES` (`replayName`, `timestamp`, `slot`, `equipped`, `itemID`, `amount`, `opcode`) VALUES " +
+                                        String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d');\n",
+                                            fname,
+                                            packet.timestamp,
+                                            slot,
+                                            equipped,
+                                            itemID,
+                                            itemStack,
+                                            packet.opcode)
+                                );
+                            }
+
+                            inventoryItems[slot] = itemID;
+                            inventoryStackAmounts[slot] = itemStack;
+                            inventoryItemEquipped[slot] = equipped;
+
+                            if (Settings.dumpNPCDamage) {
+                                if (isAmmo(itemID)) {
+                                    lastAmmo = itemID;
+                                }
+                            }
+                        }
+                        break;
+
+                    case PacketBuilder.OPCODE_REMOVE_INVENTORY_SLOT: // 123
+                        int slotRemoved = packet.readUnsignedByte();
+                        int itemID = inventoryItems[slotRemoved];
+
+                        inventoryItemsAllCount[itemID] -= inventoryStackAmounts[slotRemoved];
+                        for (int slot = slotRemoved; slot < 28; slot++) {
+                            inventoryItems[slot] = inventoryItems[slot + 1];
+                            inventoryStackAmounts[slot] = inventoryStackAmounts[slot + 1];
+                            inventoryItemEquipped[slot] = inventoryItemEquipped[slot + 1];
+                        }
+
+                        if (Settings.dumpNPCDamage) {
+                            if (isAmmo(itemID)) {
+                                lastAmmo = itemID;
+                            }
+                        }
+
+                        break;
+
+                    case PacketBuilder.OPCODE_SET_STATS: // 156
+                        for (int stat = 0; stat < 17; stat++) {
+                            playerCurStat[stat] = packet.readByte();
+                        }
+                        for (int stat = 0; stat < 17; stat++) {
+                            playerBaseStat[stat] = packet.readByte();
+                        }
+                        for (int stat = 0; stat < 17; stat++) {
+                            playerXP[stat] = packet.readUnsignedInt();
+                        }
+                        packet.skip(1); // quest points
+                        break;
+
+                    case PacketBuilder.OPCODE_UPDATE_STAT: // 159
+                        int stat = packet.readByte();
+                        playerCurStat[stat] = packet.readByte();
+                        playerBaseStat[stat] = packet.readByte();
+                        playerXP[stat] = packet.readUnsignedInt();
+                        break;
+
                     default:
                         break;
                 }
@@ -1406,6 +1692,10 @@ public class Scraper {
                     break;
                 case "-h":
                     return false;
+                case "-i":
+                    Settings.dumpInventories = true;
+                    JGameData.init(true);
+                    break;
                 case "-m":
                     Settings.dumpMessages = true;
                     Logger.Info("dump messages set");
@@ -1417,6 +1707,11 @@ public class Scraper {
                 case "-p":
                     Settings.sanitizePublicChat = true;
                     Logger.Info("sanitize Public Chat set");
+                    break;
+                case "-r":
+                    Settings.dumpNPCDamage = true;
+                    JGameData.init(true);
+                    Logger.Info("dump NPC damage sources set");
                     break;
                 case "-s":
                     Settings.sanitizeReplays = true;
@@ -1499,6 +1794,10 @@ public class Scraper {
             m_messageSQL.put(m_messageSQL.size(), String.format("/* ----- Highest option was: %d ----- */", highestOption));
             dumpSQLToFile(m_messageSQL, "message", Settings.scraperOutputPath + "allMessages.sql");
         }
+        if (Settings.dumpInventories) {
+            dumpSQLToFile(m_inventorySQL, "inventory", Settings.scraperOutputPath + "allInventories.sql");
+        }
+
         if (Settings.dumpChat) {
             dumpSQLToFile(m_chatSQL, "chat message", Settings.scraperOutputPath + "allChatMessages.sql");
         }
@@ -1516,6 +1815,10 @@ public class Scraper {
         }
         if (Settings.dumpBoundaries) {
             dumpBoundaries(Settings.scraperOutputPath + "boundaries.bin");
+        }
+
+        if (Settings.dumpNPCDamage) {
+            dumpSQLToFile(m_damageSQL,  "ranged damage", "rangedDataUnambiguous.sql");
         }
 
         Logger.Info(String.format("@|green %d out of %d replays were able to have an IP address determined.|@", ipFoundCount, replaysProcessedCount));
@@ -1554,6 +1857,74 @@ public class Scraper {
                 strip();
             }
             return;
+        }
+    }
+
+    private static boolean isAmmo(int itemID) {
+        switch (itemID) {
+            case 11:
+            case 190:
+            case 574:
+            case 592:
+            case 638:
+            case 639:
+            case 640:
+            case 641:
+            case 642:
+            case 643:
+            case 644:
+            case 645:
+            case 646:
+            case 647:
+            case 723:
+            case 786:
+            case 984:
+            case 985:
+            case 827:
+
+            case 1013:
+            case 1014:
+            case 1015:
+            case 1024:
+            case 1068:
+            case 1069:
+            case 1070:
+
+            case 1075:
+            case 1076:
+            case 1077:
+            case 1078:
+            case 1079:
+            case 1080:
+            case 1081:
+
+            case 1088:
+            case 1089:
+            case 1090:
+            case 1091:
+            case 1092:
+            case 1122:
+            case 1123:
+            case 1124:
+            case 1125:
+            case 1126:
+            case 1127:
+            case 1128:
+            case 1129:
+            case 1130:
+            case 1131:
+            case 1132:
+            case 1133:
+            case 1134:
+            case 1135:
+            case 1136:
+            case 1137:
+            case 1138:
+            case 1139:
+            case 1140:
+                return true;
+            default:
+                return false;
         }
     }
 

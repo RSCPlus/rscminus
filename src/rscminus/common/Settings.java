@@ -50,8 +50,11 @@ public class Settings {
   public static boolean dumpBoundaries = false;
   public static boolean dumpChat = false;
   public static boolean dumpMessages = false;
+  public static boolean dumpNPCDamage = false;
   public static boolean dumpNpcLocs = false;
   public static boolean dumpSleepWords = false;
+  public static boolean dumpShops = false;
+  public static boolean dumpInventories = false;
   public static boolean needNpcCreation = true;
   public static boolean dumpAppearances = false;
   public static boolean checkBoundaryRemoval = false;

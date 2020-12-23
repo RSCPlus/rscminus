@@ -43,6 +43,7 @@ public class PacketBuilder {
     public static final int OPCODE_SET_INVENTORY_SLOT = 90;
     public static final int OPCODE_BOUNDARY_HANDLER = 91;
     public static final int OPCODE_GROUNDITEM_HANDLER = 99;
+    public static final int OPCODE_SHOW_SHOP = 101;
     public static final int OPCODE_UPDATE_NPC = 104;
     public static final int OPCODE_SET_IGNORE = 109;
     public static final int OPCODE_SKIP_TUTORIAL = 111;
