@@ -7,6 +7,7 @@ public class ReplayMetadata {
     public int IPAddress2; // for ipv6. 0 if ipv4
     public int IPAddress3; // for ipv6. 0xFFFF if ipv4
     public int IPAddress4; // for ipv4 or ipv6
+    public int world_num_excluded; // not currently written to metadata.bin, used for calculating IPAddress4
     public byte conversionSettings;
     public int userField;
 }

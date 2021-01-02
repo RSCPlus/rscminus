@@ -25,6 +25,7 @@ import rscminus.common.Sleep;
 import rscminus.common.Logger;
 import rscminus.common.Settings;
 import rscminus.scraper.client.Class11;
+import rscminus.common.CRC16;
 
 import java.io.*;
 import java.util.Date;
@@ -84,6 +85,22 @@ public class ReplayEditor {
 
     public LinkedList<ReplayKeyPair> getKeyPairs() {
         return m_keys;
+    }
+
+    public int getKeyCRC() {
+        CRC16 sum = new CRC16();
+        byte[] keysbin = new byte[m_keys.size() * 16];
+        int keysbinIndex = 0;
+        for (int i = 0; i < m_keys.size(); i++) {
+            for (int key : m_keys.get(i).keys) {
+                keysbin[keysbinIndex++] = (byte)(key >>> 24 & 255);
+                keysbin[keysbinIndex++] = (byte)(key >>> 16 & 255);
+                keysbin[keysbinIndex++] = (byte)(key >>> 8 & 255);
+                keysbin[keysbinIndex++] = (byte)(key & 255);
+            }
+        }
+        sum.update(keysbin);
+        return (int) sum.getValue();
     }
 
     public boolean authenticReplay() {
@@ -171,16 +188,11 @@ public class ReplayEditor {
                     m_replayMetadata.IPAddress2 = metadata.readInt();
                     m_replayMetadata.IPAddress3 = metadata.readInt();
                     m_replayMetadata.IPAddress4 = metadata.readInt();
-                    Scraper.ip_address4 = m_replayMetadata.IPAddress4;
                     m_replayMetadata.conversionSettings = metadata.readByte();
                     readConversionSettings = m_replayMetadata.conversionSettings;
                     m_replayMetadata.conversionSettings |= m_metadata[METADATA_FLAGS_OFFSET];
                     m_replayMetadata.userField = metadata.readInt();
                 } else { //convert to metadata.bin v2
-                    m_replayMetadata.IPAddress1 = Scraper.ip_address1;
-                    m_replayMetadata.IPAddress2 = Scraper.ip_address2;
-                    m_replayMetadata.IPAddress3 = Scraper.ip_address3;
-                    m_replayMetadata.IPAddress4 = Scraper.ip_address4;
                     m_replayMetadata.conversionSettings = m_metadata[METADATA_FLAGS_OFFSET];
                     m_replayMetadata.userField = 0;
                 }
@@ -188,10 +200,6 @@ public class ReplayEditor {
             } else {
                 m_replayMetadata.replayLength = 0; // This gets filled out properly in ReplayReader
                 m_replayMetadata.dateModified = new Date().getTime(); // TODO: Replace this with correct dateModified
-                m_replayMetadata.IPAddress1 = Scraper.ip_address1;
-                m_replayMetadata.IPAddress2 = Scraper.ip_address2;
-                m_replayMetadata.IPAddress3 = Scraper.ip_address3;
-                m_replayMetadata.IPAddress4 = Scraper.ip_address4;
                 m_replayMetadata.conversionSettings = m_metadata[METADATA_FLAGS_OFFSET];
                 m_replayMetadata.userField = 0;
             }
@@ -338,9 +346,6 @@ public class ReplayEditor {
                 if (mouseFile.exists()) {
                     FileUtil.copyFile(mouseFile,new File(fname + "/mouse.bin.gz"));
                 }
-
-                Scraper.ip_address4 = -1;
-                Scraper.world_num_excluded = 0;
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -542,61 +547,57 @@ public class ReplayEditor {
                 FileUtil.copyFile(mouseFile,new File(fname + "/mouse.bin.gz"));
             }
 
-            Scraper.ip_address4 = -1;
-            Scraper.world_num_excluded = 0;
-
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     private void setIPAddress() {
-        if (Scraper.ip_address4 == -1) {
+        if (m_replayMetadata.IPAddress4 == -1) {
             if (authenticReplay()) {
                 // World 1: IP address 217.163.53.178
                 // World 2: IP address 217.163.53.179
                 // World 3: IP address 217.163.53.180
                 // World 4: IP address 217.163.53.181
                 // World 5: IP address 217.163.53.182
-                Scraper.ip_address4 = (217 << 24) + (163 << 16) + (53 << 8) + 177;
+                m_replayMetadata.IPAddress4 = (217 << 24) + (163 << 16) + (53 << 8) + 177;
 
                 int worldsExcluded = 0;
                 for (int i=0; i < 5; i++) {
-                    worldsExcluded += (Scraper.world_num_excluded >> i) & 0x01;
+                    worldsExcluded += (m_replayMetadata.world_num_excluded >> i) & 0x01;
                 }
                 if (worldsExcluded == 4) { // Rare, but friends on every Classic world but your own, you can tell what world you're on.
-                    Logger.Info(String.format("@|red Using the worldExcluded Method to determine IP Address! worldsExcluded: %d|@",Scraper.world_num_excluded));
+                    Logger.Info(String.format("@|red Using the worldExcluded Method to determine IP Address! worldsExcluded: %d|@", m_replayMetadata.world_num_excluded));
                     int i;
                     for (i = 0; i <= 5; i++) {
-                        if (((Scraper.world_num_excluded >> i) & 0x01) == 0) {
+                        if (((m_replayMetadata.world_num_excluded >> i) & 0x01) == 0) {
                             break;
                         }
                     }
-                    Scraper.ip_address4 += i + 1;
+                    m_replayMetadata.IPAddress4 += i + 1;
                     Scraper.ipFoundCount += 1;
                 } else {
                     // Marks the IP as 217.163.53.0
                     // 217.163.53.0/24 is assigned to Jagex, so it's just a marker that the replay is believed to be on "some" Jagex server.
-                    Scraper.ip_address4 &= 0xFFFFFF00;
+                    m_replayMetadata.IPAddress4 &= 0xFFFFFF00;
                 }
             } else {
                 // Non-authentic replay & no IP address imported
-                Scraper.ip_address4 = 0;
+                m_replayMetadata.IPAddress4 = 0;
             }
         } else {
-            if (authenticReplay() && Scraper.ip_address4 > 0 && Scraper.ip_address4 <= 5) {
-                Scraper.ip_address4 += (217 << 24) + (163 << 16) + (53 << 8) + 177;
+            if (authenticReplay() && m_replayMetadata.IPAddress4 > 0 && m_replayMetadata.IPAddress4 <= 5) {
+                m_replayMetadata.IPAddress4 += (217 << 24) + (163 << 16) + (53 << 8) + 177;
                 Scraper.ipFoundCount += 1;
             } else {
-                Logger.Warn(String.format("authentic replay: %b, Scraper.ip_address: %d", authenticReplay(), Scraper.ip_address4));
+                Logger.Warn(String.format("authentic replay: %b, Scraper.ip_address: %d", authenticReplay(), m_replayMetadata.IPAddress4));
             }
         }
-        m_replayMetadata.IPAddress4 = Scraper.ip_address4;
         Logger.Info(String.format("IP Address determined: %d.%d.%d.%d",
-                (Scraper.ip_address4 >> 24) & 0xFF,
-                (Scraper.ip_address4 >> 16) & 0xFF,
-                (Scraper.ip_address4 >> 8) & 0xFF,
-                (Scraper.ip_address4) & 0xFF));
+            (m_replayMetadata.IPAddress4 >> 24) & 0xFF,
+                (m_replayMetadata.IPAddress4 >> 16) & 0xFF,
+                (m_replayMetadata.IPAddress4 >> 8) & 0xFF,
+                (m_replayMetadata.IPAddress4 & 0xFF)));
 
     }
 

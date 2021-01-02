@@ -19,6 +19,8 @@ public final class Character {
     public int colourBottom;
     public String displayName;
     public int attackingPlayerServerIndex = 0;
+    public int lastAttackerIndex = -1;
+    public int lastSprite = -1;
     public int serverIndex;
     public String message;
     public int combatTimeout = 0;
