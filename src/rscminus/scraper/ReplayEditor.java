@@ -21,16 +21,15 @@ package rscminus.scraper;
 
 import rscminus.common.FileUtil;
 import rscminus.common.ISAACCipher;
-import rscminus.common.Sleep;
 import rscminus.common.Logger;
 import rscminus.common.Settings;
-import rscminus.scraper.client.Class11;
-import rscminus.common.CRC16;
 
 import java.io.*;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.zip.GZIPOutputStream;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 public class ReplayEditor {
     private LinkedList<ReplayKeyPair> m_keys = new LinkedList<ReplayKeyPair>();
@@ -88,7 +87,7 @@ public class ReplayEditor {
     }
 
     public int getKeyCRC() {
-        CRC16 sum = new CRC16();
+        Checksum sum = new CRC32();
         byte[] keysbin = new byte[m_keys.size() * 16];
         int keysbinIndex = 0;
         for (int i = 0; i < m_keys.size(); i++) {
@@ -99,29 +98,29 @@ public class ReplayEditor {
                 keysbin[keysbinIndex++] = (byte)(key & 255);
             }
         }
-        sum.update(keysbin);
+        sum.update(keysbin,0,keysbin.length);
         return (int) sum.getValue();
     }
 
     public boolean authenticReplay() {
         if (foundInauthentic) {
-            Logger.Info("foundInauthentic");
+            Logger.Info("@|white [" + getKeyCRC() + "]|@ foundInauthentic");
             foundInauthentic = false;
             return false;
         }
 
         if (m_replayVersion.clientVersion != 235) {
-            Logger.Info("clientVersion != 235");
+            Logger.Info("@|white [" + getKeyCRC() + "]|@ clientVersion != 235");
             return false;
         }
 
         if (m_replayVersion.version > 3) {
-            Logger.Info("replayVersion > 3");
+            Logger.Info("@|white [" + getKeyCRC() + "]|@ replayVersion > 3");
             return false;
         }
 
         if (readConversionSettings != -128) {
-            Logger.Info(String.format("readConversionSettings != -128, instead == %d", readConversionSettings));
+            Logger.Info("@|white [" + getKeyCRC() + "]|@ " + String.format("readConversionSettings != -128, instead == %d", readConversionSettings));
             return false;
         }
 
@@ -131,14 +130,14 @@ public class ReplayEditor {
 
         for (int i = 0; i < m_inChecksum.length; i++) {
             if (m_inChecksum[i] != m_inMetadata[i]) {
-                Logger.Info(String.format("bad in.bin checksum %d != %d, i = %d",m_inChecksum[i], m_inMetadata[i], i));
+                Logger.Info("@|white [" + getKeyCRC() + "]|@ " + String.format("bad in.bin checksum %d != %d, i = %d",m_inChecksum[i], m_inMetadata[i], i));
                 return false;
             }
         }
 
         for (int i = 0; i < m_outChecksum.length; i++) {
             if (m_outChecksum[i] != m_outMetadata[i]) {
-                Logger.Info("bad out.bin checksum");
+                Logger.Info("@|white [" + getKeyCRC() + "]|@ bad out.bin checksum");
                 return false;
             }
         }
@@ -146,18 +145,11 @@ public class ReplayEditor {
         return true;
     }
 
-    public boolean importData(String fname) {
+    public boolean importNonPacketData(String fname) {
         // Required files
         File keysFile = new File(fname + "/keys.bin");
         File versionFile = new File(fname + "/version.bin");
-        File inFile = new File(fname + "/in.bin.gz");
-        File outFile = new File(fname + "/out.bin.gz");
         File metadataFile = new File(fname + "/metadata.bin");
-
-        if (!inFile.exists())
-            inFile = new File(fname + "/in.bin");
-        if (!outFile.exists())
-            outFile = new File(fname + "/out.bin");
 
         // If none of the required files exist, we can't continue
         if (!keysFile.exists())
@@ -170,8 +162,8 @@ public class ReplayEditor {
         if (keysFile.length() < 16)
             return false;
 
+        // Import metadata data
         try {
-            // Import metadata data
             if (metadataFile.exists() && metadataFile.length() >= 8) {
                 DataInputStream metadata = new DataInputStream(new FileInputStream(metadataFile));
                 m_replayMetadata.replayLength = metadata.readInt();
@@ -180,7 +172,7 @@ public class ReplayEditor {
                 long lastLegitDateModified = ((long)1533553582) * 1000; //2018 August 6th 11:06:22 UTC, a couple hours after close because of incorrect timezone on user computer
                 if (m_replayMetadata.dateModified > lastLegitDateModified) {
                     foundInauthentic = true;
-                    Logger.Warn(String.format("Inauthentic Date Modified %d > %d", m_replayMetadata.dateModified,lastLegitDateModified));
+                    Logger.Warn("@|white [" + getKeyCRC() + "]|@ " + String.format("Inauthentic Date Modified %d > %d", m_replayMetadata.dateModified,lastLegitDateModified));
                 }
 
                 if (metadataFile.length() >= 13) {
@@ -204,10 +196,13 @@ public class ReplayEditor {
                 m_replayMetadata.userField = 0;
             }
         } catch (Exception e) {
+            e.printStackTrace();
+            return false;
         }
 
+        // Import version data
         try {
-            // Import version data
+
             if (versionFile.exists()) {
                 DataInputStream version = new DataInputStream(new FileInputStream(versionFile));
                 m_replayVersion.version = version.readInt();
@@ -217,8 +212,13 @@ public class ReplayEditor {
                 m_replayVersion.version = 0;
                 m_replayVersion.clientVersion = 235;
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
 
-            // Import keys
+        // Import keys
+        try {
             int keyCount = (int) keysFile.length() / 16;
             DataInputStream keys = new DataInputStream(new FileInputStream(keysFile));
             for (int i = 0; i < keyCount; i++) {
@@ -232,7 +232,19 @@ public class ReplayEditor {
             keys.close();
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
+        return true;
+    }
+
+    public boolean importPacketData(String fname) {
+        File inFile = new File(fname + "/in.bin.gz");
+        File outFile = new File(fname + "/out.bin.gz");
+
+        if (!inFile.exists())
+            inFile = new File(fname + "/in.bin");
+        if (!outFile.exists())
+            outFile = new File(fname + "/out.bin");
 
         ReplayPacket replayPacket;
         try {
@@ -256,7 +268,7 @@ public class ReplayEditor {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            Logger.Warn(e.getMessage() + " in ReplayEditor.importData. (This usually is because the replay is unplayable/broken)");
+            Logger.Warn("@|white [" + getKeyCRC() + "]|@ " + e.getMessage() + " in ReplayEditor.importPacketData. (This usually is because the replay is unplayable/broken)");
         }
 
         try {
@@ -328,7 +340,7 @@ public class ReplayEditor {
                 metadata.writeInt(m_replayMetadata.replayLength);
                 metadata.writeLong(m_replayMetadata.dateModified);
                 setIPAddress();
-                Logger.Info(String.format("ip: %d:%d:%d:%d",m_replayMetadata.IPAddress1,m_replayMetadata.IPAddress2,m_replayMetadata.IPAddress3,m_replayMetadata.IPAddress4));
+                Logger.Info("@|white [" + getKeyCRC() + "]|@ " + String.format("ip: %d:%d:%d:%d",m_replayMetadata.IPAddress1,m_replayMetadata.IPAddress2,m_replayMetadata.IPAddress3,m_replayMetadata.IPAddress4));
                 metadata.writeInt(m_replayMetadata.IPAddress1); // IPv6
                 metadata.writeInt(m_replayMetadata.IPAddress2); // IPv6
                 metadata.writeInt(m_replayMetadata.IPAddress3); // IPv6
@@ -516,12 +528,12 @@ public class ReplayEditor {
             metadata.writeInt(m_replayMetadata.replayLength);
             metadata.writeLong(m_replayMetadata.dateModified);
             setIPAddress();
-            Logger.Info(String.format("ip: %d:%d:%d:%d",m_replayMetadata.IPAddress1,m_replayMetadata.IPAddress2,m_replayMetadata.IPAddress3,m_replayMetadata.IPAddress4));
+            Logger.Info("@|white [" + getKeyCRC() + "]|@ " + String.format("ip: %d:%d:%d:%d",m_replayMetadata.IPAddress1,m_replayMetadata.IPAddress2,m_replayMetadata.IPAddress3,m_replayMetadata.IPAddress4));
             metadata.writeInt(m_replayMetadata.IPAddress1); // IPv6
             metadata.writeInt(m_replayMetadata.IPAddress2); // IPv6
             metadata.writeInt(m_replayMetadata.IPAddress3); // IPv6
             metadata.writeInt(m_replayMetadata.IPAddress4); // IPv4/IPv6
-            Logger.Info(String.format("conversionSettings: %d",m_replayMetadata.conversionSettings));
+            Logger.Info("@|white [" + getKeyCRC() + "]|@ " + String.format("conversionSettings: %d",m_replayMetadata.conversionSettings));
             metadata.writeByte(m_replayMetadata.conversionSettings);
             metadata.writeInt(m_replayMetadata.userField);
             metadata.close();
@@ -567,7 +579,7 @@ public class ReplayEditor {
                     worldsExcluded += (m_replayMetadata.world_num_excluded >> i) & 0x01;
                 }
                 if (worldsExcluded == 4) { // Rare, but friends on every Classic world but your own, you can tell what world you're on.
-                    Logger.Info(String.format("@|red Using the worldExcluded Method to determine IP Address! worldsExcluded: %d|@", m_replayMetadata.world_num_excluded));
+                    Logger.Info("@|white [" + getKeyCRC() + "]|@ " + String.format("@|red Using the worldExcluded Method to determine IP Address! worldsExcluded: %d|@", m_replayMetadata.world_num_excluded));
                     int i;
                     for (i = 0; i <= 5; i++) {
                         if (((m_replayMetadata.world_num_excluded >> i) & 0x01) == 0) {
@@ -590,10 +602,10 @@ public class ReplayEditor {
                 m_replayMetadata.IPAddress4 += (217 << 24) + (163 << 16) + (53 << 8) + 177;
                 Scraper.ipFoundCount += 1;
             } else {
-                Logger.Warn(String.format("authentic replay: %b, Scraper.ip_address: %d", authenticReplay(), m_replayMetadata.IPAddress4));
+                Logger.Warn("@|white [" + getKeyCRC() + "]|@ " + String.format("authentic replay: %b, Scraper.ip_address: %d", authenticReplay(), m_replayMetadata.IPAddress4));
             }
         }
-        Logger.Info(String.format("IP Address determined: %d.%d.%d.%d",
+        Logger.Info("@|white [" + getKeyCRC() + "]|@ " + String.format("IP Address determined: %d.%d.%d.%d",
             (m_replayMetadata.IPAddress4 >> 24) & 0xFF,
                 (m_replayMetadata.IPAddress4 >> 16) & 0xFF,
                 (m_replayMetadata.IPAddress4 >> 8) & 0xFF,

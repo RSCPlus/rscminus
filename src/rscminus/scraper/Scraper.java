@@ -47,6 +47,8 @@ public class Scraper {
     public static HashMap<Integer, Integer> m_sceneryLocs = new HashMap<Integer, Integer>();
     public static HashMap<Integer, Integer> m_boundaryLocs = new HashMap<Integer, Integer>();
 
+    public static HashMap<Integer, String> m_replaysKeysProcessed = new HashMap<Integer, String>();
+
     public static List<String> m_npcLocCSV = Collections.synchronizedList(new ArrayList<String>());
     public static List<String> m_replayDictionarySQL = Collections.synchronizedList(new ArrayList<String>());
     public static List<String> m_chatSQL = Collections.synchronizedList(new ArrayList<String>());

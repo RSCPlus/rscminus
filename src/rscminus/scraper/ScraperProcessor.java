@@ -5,7 +5,6 @@ import rscminus.common.JGameData;
 import rscminus.common.Logger;
 import rscminus.common.Settings;
 import rscminus.game.PacketBuilder;
-import rscminus.game.WorldManager;
 import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
 import rscminus.scraper.client.Character;
@@ -43,7 +42,6 @@ public class ScraperProcessor implements Runnable {
     public long[] playerXP = new long[18];
 
     public static final int SCENERY_BLANK = 65536;
-
 
     String fname;
 
@@ -500,21 +498,37 @@ public class ScraperProcessor implements Runnable {
     }
 
     public void processReplay(String fname) {
-        Logger.Info("@|cyan Started sanitizing |@" + fname);
+
         ReplayEditor editor = new ReplayEditor();
         setFlags(editor);
-        boolean success = editor.importData(fname);
+        boolean success = false;
+        int keyCRC = 0;
+
+        if (editor.importNonPacketData(fname)) {
+            keyCRC = editor.getKeyCRC();
+            String visitedReplay = Scraper.m_replaysKeysProcessed.get(keyCRC);
+            if (visitedReplay != null) {
+                Logger.Warn("@|red Skipping replay |@@|yellow " + fname + "|@@|red , seems to be a duplicate of |@@|green " + visitedReplay + "|@");
+                return;
+            } else {
+                Scraper.m_replaysKeysProcessed.put(keyCRC, fname);
+            }
+
+            success = editor.importPacketData(fname);
+        }
 
         if (!success) {
-            Logger.Warn("Replay is not valid, skipping");
+            Logger.Warn("Replay " + fname + " is not valid, skipping");
             return;
         }
 
-        Logger.Info("client version: " + editor.getReplayVersion().clientVersion);
-        Logger.Info("replay version: " + editor.getReplayVersion().version);
+        Logger.Info("@|cyan Started sanitizing |@@|white [" + keyCRC + "]|@ aka "+ fname);
+
+        Logger.Info("@|white [" + keyCRC + "]|@ client version: " + editor.getReplayVersion().clientVersion);
+        Logger.Info("@|white [" + keyCRC + "]|@ replay version: " + editor.getReplayVersion().version);
 
         if (!Settings.sanitizeForce && !editor.authenticReplay()) {
-            Logger.Warn("Replay is not an authentic rsc replay");
+            Logger.Warn("Replay " + keyCRC + " is not an authentic rsc replay. skipping");
             return;
         }
 
@@ -534,7 +548,7 @@ public class ScraperProcessor implements Runnable {
             Scraper.m_replayDictionarySQL.add(
                 String.format("%s%d', '%s');\n",
                     "INSERT INTO `rscMessages`.`replayDictionary` (`index`, `filePath`) VALUES ('",
-                    editor.getKeyCRC(),
+                    keyCRC,
                     fname.replaceFirst(Settings.sanitizePath, "").replaceAll("'", "''")
                 )
             );
@@ -556,12 +570,12 @@ public class ScraperProcessor implements Runnable {
         // Process incoming packet
         LinkedList<ReplayPacket> incomingPackets = editor.getIncomingPackets();
         for (ReplayPacket packet : incomingPackets) {
-            Logger.Debug(String.format("incoming opcode: %d",packet.opcode));
+            Logger.Debug("@|white [" + keyCRC + "]|@ " + String.format("incoming opcode: %d",packet.opcode));
             try {
 
                 switch (packet.opcode) {
                     case ReplayEditor.VIRTUAL_OPCODE_CONNECT:
-                        Logger.Info("loginresponse: " + packet.data[0] + " (timestamp: " + packet.timestamp + ")");
+                        Logger.Info("@|white [" + keyCRC + "]|@ loginresponse: " + packet.data[0] + " (timestamp: " + packet.timestamp + ")");
 
                         if (Settings.dumpSleepWords) {
                             interestingSleepPackets.put(interestingSleepPackets.size(), packet);
@@ -603,7 +617,7 @@ public class ScraperProcessor implements Runnable {
                                 Scraper.m_messageSQL.add(
                                     "INSERT INTO `rscMessages`.`SEND_MESSAGE` (`replayIndex`, `timestamp`, `messageType`, `infoContained`, `message`, `sender`, `sender2`, `color`) VALUES " +
                                         String.format("('%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s');\n",
-                                            editor.getKeyCRC(),
+                                            keyCRC,
                                             packet.timestamp,
                                             type,
                                             infoContained,
@@ -665,7 +679,7 @@ public class ScraperProcessor implements Runnable {
                                     Scraper.m_chatSQL.add(
                                         "INSERT INTO `rscMessages`.`UPDATE_PLAYERS_TYPE_1` (`replayIndex`, `timestamp`, `pid`, `localPlayerMessageCount`, `message`) VALUES " +
                                             String.format("('%d', '%d', '%d', '%d', '%s');\n",
-                                                editor.getKeyCRC(),
+                                                keyCRC,
                                                 packet.timestamp,
                                                 pid,
                                                 pid == localPID ? op234type1EchoCount++ : -1,
@@ -702,7 +716,7 @@ public class ScraperProcessor implements Runnable {
                                 int shooterIndex = packet.readUnsignedShort();
                                 if (Settings.dumpNPCDamage) {
                                     if (sprite != 3) { // gnome ball
-                                        Logger.Info(pid + " shot at " + shooterIndex + " with " + sprite);
+                                        Logger.Info("@|white [" + keyCRC + "]|@ " + pid + " shot at " + shooterIndex + " with " + sprite);
                                     }
                                 }
                             } else if (updateType == 5) { // equipment change
@@ -718,7 +732,7 @@ public class ScraperProcessor implements Runnable {
                                     Scraper.m_messageSQL.add(
                                         "INSERT INTO `rscMessages`.`UPDATE_PLAYERS_TYPE_6` (`replayIndex`, `timestamp`, `pid`, `message`) VALUES " +
                                             String.format("('%d', '%d', '%d', '%s');\n",
-                                                editor.getKeyCRC(),
+                                                keyCRC,
                                                 packet.timestamp,
                                                 pid,
                                                 message.replaceAll("'", "''")
@@ -726,7 +740,7 @@ public class ScraperProcessor implements Runnable {
                                     );
                                 }
                             } else {
-                                Logger.Info("Hit unanticipated update type " + updateType);
+                                Logger.Info("@|white [" + keyCRC + "]|@ Hit unanticipated update type " + updateType);
                                 packet.skip(2);
                                 packet.readPaddedString();
                                 packet.readPaddedString();
@@ -772,14 +786,14 @@ public class ScraperProcessor implements Runnable {
                                             editor.getReplayMetadata().world_num_excluded |= (int)Math.pow(2,worldNumExcluded - 1);
                                         } else {
                                             editor.foundInauthentic = true;
-                                            Logger.Warn("Inauthentic amount of worlds");
+                                            Logger.Warn("@|white [" + keyCRC + "]|@ Inauthentic amount of worlds");
                                         }
                                     }
                                 }
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
-                            Logger.Error(String.format("error parsing opcode_update_friend, packet.timestamp: %d", packet.timestamp));
+                            Logger.Error("@|white [" + keyCRC + "]|@ " + String.format("error parsing opcode_update_friend, packet.timestamp: %d", packet.timestamp));
                         }
                         break;
                     case PacketBuilder.OPCODE_RECV_PM:
@@ -788,7 +802,7 @@ public class ScraperProcessor implements Runnable {
                             String recvPMSender2 = packet.readPaddedString(); //sender's name again
                             Boolean recvPMSenderTwice = recvPMSender1.equals(recvPMSender2);
                             if (!recvPMSenderTwice) {
-                                Logger.Warn("Sender1 != Sender2 in OPCODE_RECV_PM!");
+                                Logger.Warn("@|white [" + keyCRC + "]|@ Sender1 != Sender2 in OPCODE_RECV_PM!");
                             }
                             int recvPMModeratorStatus = packet.readByte();
                             BigInteger recvPMMessageID = packet.readUnsignedLong();
@@ -797,7 +811,7 @@ public class ScraperProcessor implements Runnable {
                             Scraper.m_chatSQL.add(
                                 "INSERT INTO `rscMessages`.`RECEIVE_PM` (`replayIndex`, `timestamp`, `sendersRepeated`, `moderator`, `messageID`, `message`) VALUES " +
                                     String.format("('%d', '%d', '%s', '%d', '%d', '%s');\n",
-                                        editor.getKeyCRC(),
+                                        keyCRC,
                                         packet.timestamp,
                                         recvPMSenderTwice ? "1" : "0",
                                         recvPMModeratorStatus,
@@ -817,7 +831,7 @@ public class ScraperProcessor implements Runnable {
                             Scraper.m_chatSQL.add(
                                 "INSERT INTO `rscMessages`.`SEND_PM_SERVER_ECHO` (`replayIndex`, `timestamp`, `messageCount`, `message`) VALUES " +
                                     String.format("('%d', '%d', '%d', '%s');\n",
-                                        editor.getKeyCRC(),
+                                        keyCRC,
                                         packet.timestamp,
                                         sendPMEchoCount++,
                                         sendPMMessage.replaceAll("'", "''")
@@ -868,7 +882,7 @@ public class ScraperProcessor implements Runnable {
                                                     // npc was under attack at time of death, this is a kill shot
                                                     switch (npcsServer[npcIndex].incomingProjectileSprite) {
                                                         case -1:
-                                                            Logger.Info("incoming projectile sprite not set, but npc was damaged while not in melee combat");
+                                                            Logger.Info("@|white [" + keyCRC + "]|@ incoming projectile sprite not set, but npc was damaged while not in melee combat");
                                                             break;
                                                         case 2: // ranged projectile
 
@@ -916,7 +930,7 @@ public class ScraperProcessor implements Runnable {
 
                                                             break;
                                                         case 3: // gnomeball
-                                                            Logger.Info("What in tarnation? enemy killed by gnomeball??");
+                                                            Logger.Info("@|white [" + keyCRC + "]|@ What in tarnation? enemy killed by gnomeball??");
                                                             break;
                                                         case 1: // magic spell
                                                         case 4: // iban blast
@@ -925,7 +939,7 @@ public class ScraperProcessor implements Runnable {
                                                         case 5: // cannonball
                                                             break;
                                                         default:
-                                                            Logger.Info("unknown projectile, shouldn't be possible");
+                                                            Logger.Info("@|white [" + keyCRC + "]|@ unknown projectile, shouldn't be possible;; timestamp: " + packet.timestamp);
                                                             break;
                                                     }
 
@@ -1016,7 +1030,7 @@ public class ScraperProcessor implements Runnable {
                                         Scraper.m_messageSQL.add(
                                             "INSERT INTO `rscMessages`.`UPDATE_NPCS_TYPE_1` (`replayIndex`, `timestamp`, `npcId`, `pidTalkingTo`, `message`) VALUES " +
                                                 String.format("('%d', '%d', '%d', '%d', '%s');\n",
-                                                    editor.getKeyCRC(),
+                                                    keyCRC,
                                                     packet.timestamp,
                                                     npcsServer[npcServerIndex].npcId,
                                                     pidTalkingTo,
@@ -1053,7 +1067,7 @@ public class ScraperProcessor implements Runnable {
                                                 // not possible for this to be melee damage :-)
                                                 switch (npcsServer[npcServerIndex].incomingProjectileSprite) {
                                                     case -1:
-                                                        Logger.Info("incoming projectile sprite not set, but npc was damaged while not in melee combat");
+                                                        Logger.Info("@|white [" + keyCRC + "]|@ incoming projectile sprite not set, but npc was damaged while not in melee combat;; timestamp: " + packet.timestamp);
                                                         break;
                                                     case 1: // magic projectile
                                                         if (npcsServer[npcServerIndex].attackingPlayerServerIndex == localPID) {
@@ -1122,7 +1136,7 @@ public class ScraperProcessor implements Runnable {
                                                     case 6: // god spell
                                                         break;
                                                     default:
-                                                        Logger.Info("unknown projectile, shouldn't be possible");
+                                                        Logger.Info("@|white [" + keyCRC + "]|@ unknown projectile, shouldn't be possible;; timestamp: " + packet.timestamp);
                                                         break;
                                                 }
 
@@ -1152,16 +1166,16 @@ public class ScraperProcessor implements Runnable {
                                     length -= 4;
 
                                     if (planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || floorYOffset != Game.WORLD_Y_OFFSET || planeFloor > 3 || planeFloor < 0) {
-                                        Logger.Error("Invalid region or not logged in; Aborting");
+                                        Logger.Error("@|white [" + keyCRC + "]|@ Invalid region or not logged in; Aborting");
                                         break;
                                     }
 
                                     if (!validCoordinates(x, y)) {
-                                        Logger.Error("Invalid coordinates " + x + ", " + y + "; Aborting");
+                                        Logger.Error("@|white [" + keyCRC + "]|@ Invalid coordinates " + x + ", " + y + "; Aborting");
                                         break;
                                     } else if (type != 60000 && !sceneryIDBlacklisted(type, x, y)) {
                                         if (type < 0 || type > 1188) {
-                                            Logger.Error("Scenery id " + type + " at " + x + ", " + y + " is invalid; Aborting");
+                                            Logger.Error("@|white [" + keyCRC + "]|@ Scenery id " + type + " at " + x + ", " + y + " is invalid; Aborting");
                                             break;
                                         }
 
@@ -1191,16 +1205,16 @@ public class ScraperProcessor implements Runnable {
                                     length -= 5;
 
                                     if (planeX != Game.WORLD_PLANE_X || planeY != Game.WORLD_PLANE_Y || floorYOffset != Game.WORLD_Y_OFFSET || planeFloor > 3 || planeFloor < 0) {
-                                        Logger.Error("Invalid region or not logged in; Aborting");
+                                        Logger.Error("@|white [" + keyCRC + "]|@ Invalid region or not logged in; Aborting");
                                         break;
                                     }
 
                                     if (!validCoordinates(x, y)) {
-                                        Logger.Error("Invalid coordinates " + x + ", " + y + "; Aborting");
+                                        Logger.Error("@|white [" + keyCRC + "]|@ Invalid coordinates " + x + ", " + y + "; Aborting");
                                         break;
                                     } else if (type != 0xFFFF && !boundaryIDBlacklisted(type, x, y)) {
                                         if (type < 0 || type > 213) {
-                                            Logger.Error("Boundary id " + type + " at " + x + ", " + y + " is invalid; Aborting");
+                                            Logger.Error("@|white [" + keyCRC + "]|@ Boundary id " + type + " at " + x + ", " + y + " is invalid; Aborting");
                                             break;
                                         }
 
@@ -1218,7 +1232,7 @@ public class ScraperProcessor implements Runnable {
                                     int x = playerX + packet.readByte();
                                     int y = playerY + packet.readByte();
                                     if (Scraper.worldManager.getViewArea(x, y).getBoundary(x, y) != null) {
-                                        Logger.Info(String.format("@|red BOUNDARY REMOVAL ACTUALLY DID SOMETHING @ %d,%d IN REPLAY %s AT TIMESTAMP %d|@", x, y, fname, packet.timestamp));
+                                        Logger.Info("@|white [" + keyCRC + "]|@ " + String.format("@|red BOUNDARY REMOVAL ACTUALLY DID SOMETHING @ %d,%d IN REPLAY %s AT TIMESTAMP %d|@", x, y, fname, packet.timestamp));
                                     }
                                     length -= 3;
                                 } else {
@@ -1255,7 +1269,7 @@ public class ScraperProcessor implements Runnable {
                                 int itemPrice = packet.readUnsignedShort();
 
                                 if (itemCount > highestStoreStock) {
-                                    Logger.Info("New max amount found: " + itemCount + " in replay " + fname);
+                                    Logger.Info("@|white [" + keyCRC + "]|@ New max amount found: " + itemCount + " in replay " + fname);
                                     highestStoreStock = itemCount;
                                 }
                             }
@@ -1280,9 +1294,9 @@ public class ScraperProcessor implements Runnable {
                                 }
                                 if (Settings.dumpInventories) {
                                     Scraper.m_inventorySQL.add(
-                                        "INSERT INTO `rscMessages`.`INVENTORIES` (`replayName`, `timestamp`, `slot`, `equipped`, `itemID`, `amount`, `opcode`) VALUES " +
+                                        "INSERT INTO `rscMessages`.`INVENTORIES` (`replayIndex`, `timestamp`, `slot`, `equipped`, `itemID`, `amount`, `opcode`) VALUES " +
                                             String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d');\n",
-                                                fname,
+                                                keyCRC,
                                                 packet.timestamp,
                                                 slot,
                                                 equipped,
@@ -1317,9 +1331,9 @@ public class ScraperProcessor implements Runnable {
 
                             if (Settings.dumpInventories) {
                                 Scraper.m_inventorySQL.add(
-                                    "INSERT INTO `rscMessages`.`INVENTORIES` (`replayName`, `timestamp`, `slot`, `equipped`, `itemID`, `amount`, `opcode`) VALUES " +
+                                    "INSERT INTO `rscMessages`.`INVENTORIES` (`replayIndex`, `timestamp`, `slot`, `equipped`, `itemID`, `amount`, `opcode`) VALUES " +
                                         String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d');\n",
-                                            fname,
+                                            keyCRC,
                                             packet.timestamp,
                                             slot,
                                             equipped,
@@ -1426,11 +1440,11 @@ public class ScraperProcessor implements Runnable {
         // Process outgoing packets
         LinkedList<ReplayPacket> outgoingPackets = editor.getOutgoingPackets();
         for (ReplayPacket packet : outgoingPackets) {
-            Logger.Debug(String.format("outgoing opcode: %d",packet.opcode));
+            Logger.Debug("@|white [" + keyCRC + "]|@ " + String.format("outgoing opcode: %d",packet.opcode));
             try {
                 switch (packet.opcode) {
                     case ReplayEditor.VIRTUAL_OPCODE_CONNECT: // Login
-                        Logger.Info("outgoing login (timestamp: " + packet.timestamp + ")");
+                        Logger.Info("@|white [" + keyCRC + "]|@ outgoing login (timestamp: " + packet.timestamp + ")");
                         break;
 
                     case 216: // Send chat message
@@ -1458,7 +1472,7 @@ public class ScraperProcessor implements Runnable {
                             Scraper.m_chatSQL.add(
                                 "INSERT INTO `rscMessages`.`SEND_PM` (`replayIndex`, `timestamp`, `messageCount`, `message`) VALUES " +
                                     String.format("('%d', '%d', '%d', '%s');\n",
-                                        editor.getKeyCRC(),
+                                        keyCRC,
                                         packet.timestamp,
                                         sendPMCount++,
                                         sendPMMessage.replaceAll("'", "''")
@@ -1481,7 +1495,7 @@ public class ScraperProcessor implements Runnable {
                         if (Settings.dumpMessages) {
                             Scraper.m_messageSQL.add(
                                 String.format("INSERT INTO `rscMessages`.`CLIENT_CHOOSE_DIALOGUE_OPTION` (`replayIndex`, `timestamp`, `choice`) VALUES ('%d', '%d', '%d');\n",
-                                    editor.getKeyCRC(),
+                                    keyCRC,
                                     packet.timestamp,
                                     packet.readUnsignedByte() + 1
                                 )
@@ -1535,7 +1549,7 @@ public class ScraperProcessor implements Runnable {
             }
 
             for (int cur = 0; cur < numberOfPackets; cur++) {
-                Logger.Info(String.format("Timestamp: %d; Opcode: %d;",
+                Logger.Info("@|white [" + keyCRC + "]|@ " + String.format("Timestamp: %d; Opcode: %d;",
                     sleepPackets[cur].timestamp,
                     sleepPackets[cur].opcode));
                 ReplayPacket packet = sleepPackets[cur];
@@ -1561,7 +1575,7 @@ public class ScraperProcessor implements Runnable {
                                     case 45: // CLIENT_SEND_SLEEPWORD_GUESS
                                         sleepPackets[i].readByte();
                                         sleepWordGuess = sleepPackets[i].readPaddedString();
-                                        Logger.Info("Found guess: " + sleepWordGuess);
+                                        Logger.Info("@|white [" + keyCRC + "]|@ Found guess: " + sleepWordGuess);
                                         guessCorrect = true; // not known yet, just setting flag true so it can be set false later
                                         break;
                                     case PacketBuilder.OPCODE_SEND_MESSAGE:
@@ -1637,7 +1651,7 @@ public class ScraperProcessor implements Runnable {
                                 e.printStackTrace();
                             }
 
-                            Logger.Info(String.format("sleepword %d: %d length: %d", cur, packet.opcode, packet.data.length));
+                            Logger.Info("@|white [" + keyCRC + "]|@ " + String.format("sleepword %d: %d length: %d", cur, packet.opcode, packet.data.length));
 
                         } else {
                             Logger.Warn("Zero length packet 117 in " + fname);
@@ -1671,6 +1685,6 @@ public class ScraperProcessor implements Runnable {
             editor.exportPCAP(outDir);
         }
         Scraper.replaysProcessedCount += 1;
-        Logger.Info("@|cyan,intensity_bold Finished sanitizing |@" + fname);
+        Logger.Info("@|cyan,intensity_bold Finished sanitizing |@@|white [" + keyCRC + "]|@ aka " + fname );
     }
 }
