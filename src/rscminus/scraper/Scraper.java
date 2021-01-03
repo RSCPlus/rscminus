@@ -31,12 +31,8 @@ import rscminus.scraper.client.Character;
 
 import java.io.*;
 import java.math.BigInteger;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -47,10 +43,10 @@ import static rscminus.scraper.ReplayEditor.appendingToReplay;
 public class Scraper {
     public static long startTime = 0;
 
-    public static HashMap<Integer, Integer> m_sceneryLocs = new HashMap<Integer, Integer>();
-    public static HashMap<Integer, Integer> m_boundaryLocs = new HashMap<Integer, Integer>();
+    public static Map<Integer, Integer> m_sceneryLocs = Collections.synchronizedMap(new ConcurrentHashMap<Integer, Integer>());
+    public static Map<Integer, Integer> m_boundaryLocs = Collections.synchronizedMap(new ConcurrentHashMap<Integer, Integer>());
 
-    public static HashMap<Integer, String> m_replaysKeysProcessed = new HashMap<Integer, String>();
+    public static Map<Integer, String> m_replaysKeysProcessed = Collections.synchronizedMap(new ConcurrentHashMap<Integer, String>());
 
     public static List<String> m_npcLocCSV = Collections.synchronizedList(new ArrayList<String>());
     public static List<String> m_replayDictionarySQL = Collections.synchronizedList(new ArrayList<String>());

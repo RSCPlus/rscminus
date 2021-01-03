@@ -42,6 +42,8 @@ public class ScraperProcessor implements Runnable {
     public long[] playerXP = new long[18];
 
     public String lastSound = "";
+    public int lastSoundTimestamp = -1;
+    public int lastAmmoTimestamp = -1;
 
     public static final int SCENERY_BLANK = 65536;
 
@@ -486,10 +488,22 @@ public class ScraperProcessor implements Runnable {
         }
     }
 
-    private boolean removalIsKillshot(Character npc, int localPID, int playerX, int playerY) {
+    private boolean removalIsKillshot(Character npc, int localPID, int playerX, int playerY, int keyCRC, int timestamp) {
+        int soundThreshold = 80;
+        int ammoThreshold = 110;
+
+        // if ammo hasn't been removed from the inventory recently, there's no way that this is a killshot.
+        if (timestamp - lastAmmoTimestamp > ammoThreshold) {
+            return false;
+        }
+
         // npc actively has an unprocessed hit against them, and it is by the local player.
         if (npc.attackingPlayerServerIndex == localPID) {
-            return true;
+            // The NPC can path to the player & begin melee
+            // then the game removes the NPC for a moment so it can update their animation
+            if (lastSound.equals("victory") && (timestamp - lastSoundTimestamp < soundThreshold)) {
+                return true;
+            }
         }
 
         // Player is close enough to the NPC when it despawns that it is not removed due to being too far away
@@ -500,9 +514,11 @@ public class ScraperProcessor implements Runnable {
                 Math.abs(npc.currentY - playerY) > 0 ) {
                 // Player previously was in ranged combat with this NPC
                 if (npc.lastAttackerIndex != -1 && npc.lastAttackerIndex == localPID) {
-                    // Player's last major action involved defeating an enemy
-                    if (lastSound.equals("victory")) {
+                    // Player's last major action involved defeating an enemy, and recently
+                    if (lastSound.equals("victory") && (timestamp - lastSoundTimestamp < soundThreshold)) {
                         return true;
+                    } else {
+                        Logger.Info("@|white [" + keyCRC + "]|@ last sound wasn't 'victory', surprisingly");
                     }
                 }
             }
@@ -894,7 +910,7 @@ public class ScraperProcessor implements Runnable {
                                             // npc is removed
                                             if (Settings.dumpNPCDamage) {
                                                 if (npc == null) continue;
-                                                if (removalIsKillshot(npc, localPID, playerX, playerY)) {
+                                                if (removalIsKillshot(npc, localPID, playerX, playerY, keyCRC, packet.timestamp)) {
                                                     Logger.Info("@|white [" + keyCRC + "]|@ killshot!!! PID " + npc.lastAttackerIndex + " killed NPC Index " + npc.serverIndex + " @ timestamp:" + packet.timestamp);
 
                                                     if (npc.attackingPlayerServerIndex != localPID) {
@@ -934,9 +950,9 @@ public class ScraperProcessor implements Runnable {
                                                             }
 
                                                             Scraper.m_damageSQL.add(
-                                                                "INSERT INTO `rscDamage`.`unambiguousRanged` (`replayPath`, `timestamp`, `npcId`, `damageTaken`, `currentHP`, `maxHP`, `lastAmmo`, `bow`, `curRangedStat`, `killshot`) VALUES " +
-                                                                    String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d');\n",
-                                                                        fname.replaceFirst(Settings.sanitizePath, "").replaceAll("'", "''"),
+                                                                "INSERT INTO `rscMessages`.`unambiguousRanged` (`replayIndex`, `timestamp`, `npcId`, `damageTaken`, `currentHP`, `maxHP`, `lastAmmo`, `bow`, `curRangedStat`, `killshot`) VALUES " +
+                                                                    String.format("('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d');\n",
+                                                                        keyCRC,
                                                                         packet.timestamp,
                                                                         npc.npcId,
                                                                         npc.healthCurrent, // damage taken, assumed to be current health
@@ -1128,9 +1144,9 @@ public class ScraperProcessor implements Runnable {
                                                             }
 
                                                             Scraper.m_damageSQL.add(
-                                                                "INSERT INTO `rscDamage`.`unambiguousRanged` (`replayPath`, `timestamp`, `npcId`, `damageTaken`, `currentHP`, `maxHP`, `lastAmmo`, `bow`, `curRangedStat`, `killshot`) VALUES " +
-                                                                    String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d');\n",
-                                                                        fname.replaceFirst(Settings.sanitizePath, "").replaceAll("'", "''"),
+                                                                "INSERT INTO `rscMessages`.`unambiguousRanged` (`replayIndex`, `timestamp`, `npcId`, `damageTaken`, `currentHP`, `maxHP`, `lastAmmo`, `bow`, `curRangedStat`, `killshot`) VALUES " +
+                                                                    String.format("('%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d');\n",
+                                                                        keyCRC,
                                                                         packet.timestamp,
                                                                         npcsServer[npcServerIndex].npcId,
                                                                         npcDamageTaken,
@@ -1372,6 +1388,7 @@ public class ScraperProcessor implements Runnable {
                             if (Settings.dumpNPCDamage) {
                                 if (isAmmo(itemID)) {
                                     lastAmmo = itemID;
+                                    lastAmmoTimestamp = packet.timestamp;
                                 }
                             }
                         }
@@ -1391,6 +1408,7 @@ public class ScraperProcessor implements Runnable {
                         if (Settings.dumpNPCDamage) {
                             if (isAmmo(itemID)) {
                                 lastAmmo = itemID;
+                                lastAmmoTimestamp = packet.timestamp;
                             }
                         }
 
@@ -1418,6 +1436,7 @@ public class ScraperProcessor implements Runnable {
 
                     case PacketBuilder.OPCODE_PLAY_SOUND: // 204
                         lastSound = packet.readPaddedString();
+                        lastSoundTimestamp = packet.timestamp;
                         break;
 
 
