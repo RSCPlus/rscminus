@@ -41,6 +41,8 @@ public class ScraperProcessor implements Runnable {
     public int[] playerCurStat = new int[18];
     public long[] playerXP = new long[18];
 
+    public String lastSound = "";
+
     public static final int SCENERY_BLANK = 65536;
 
     String fname;
@@ -484,6 +486,30 @@ public class ScraperProcessor implements Runnable {
         }
     }
 
+    private boolean removalIsKillshot(Character npc, int localPID, int playerX, int playerY) {
+        // npc actively has an unprocessed hit against them, and it is by the local player.
+        if (npc.attackingPlayerServerIndex == localPID) {
+            return true;
+        }
+
+        // Player is close enough to the NPC when it despawns that it is not removed due to being too far away
+        if (Math.abs(npc.currentX - playerX) < 12 &&
+            Math.abs(npc.currentY - playerY) < 12) {
+            // Player can't possibly be in melee combat, because they are not on the same tile
+            if (Math.abs(npc.currentX - playerX) > 0 ||
+                Math.abs(npc.currentY - playerY) > 0 ) {
+                // Player previously was in ranged combat with this NPC
+                if (npc.lastAttackerIndex != -1 && npc.lastAttackerIndex == localPID) {
+                    // Player's last major action involved defeating an enemy
+                    if (lastSound.equals("victory")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     // this sets the metadata byte in the replayeditor for when it gets written out to file
     private void setFlags(ReplayEditor editor) {
         byte[] metadata = editor.getMetadata();
@@ -867,20 +893,15 @@ public class ScraperProcessor implements Runnable {
                                         } else {
                                             // npc is removed
                                             if (Settings.dumpNPCDamage) {
-                                                if (npcsServer[npcIndex] == null) continue;
-                                                if (npcsServer[npcIndex].attackingPlayerServerIndex == localPID ||
-                                                    (Math.abs(npcsServer[npcIndex].currentX - playerX) < 15 &&
-                                                        Math.abs(npcsServer[npcIndex].currentY - playerY) < 15 &&
-                                                        (Math.abs(npcsServer[npcIndex].currentX - playerX) > 0 ||
-                                                            Math.abs(npcsServer[npcIndex].currentY - playerY) > 0 ) &&
-                                                        npcsServer[npcIndex].lastAttackerIndex == localPID )
-                                                ) {
+                                                if (npc == null) continue;
+                                                if (removalIsKillshot(npc, localPID, playerX, playerY)) {
+                                                    Logger.Info("@|white [" + keyCRC + "]|@ killshot!!! PID " + npc.lastAttackerIndex + " killed NPC Index " + npc.serverIndex + " @ timestamp:" + packet.timestamp);
 
-                                                    if (npcsServer[npcIndex].attackingPlayerServerIndex != localPID) {
-                                                        npcsServer[npcIndex].incomingProjectileSprite = npcsServer[npcIndex].lastSprite;
+                                                    if (npc.attackingPlayerServerIndex != localPID) {
+                                                        npc.incomingProjectileSprite = npc.lastSprite;
                                                     }
                                                     // npc was under attack at time of death, this is a kill shot
-                                                    switch (npcsServer[npcIndex].incomingProjectileSprite) {
+                                                    switch (npc.incomingProjectileSprite) {
                                                         case -1:
                                                             Logger.Info("@|white [" + keyCRC + "]|@ incoming projectile sprite not set, but npc was damaged while not in melee combat");
                                                             break;
@@ -917,16 +938,17 @@ public class ScraperProcessor implements Runnable {
                                                                     String.format("('%s', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d');\n",
                                                                         fname.replaceFirst(Settings.sanitizePath, "").replaceAll("'", "''"),
                                                                         packet.timestamp,
-                                                                        npcsServer[npcIndex].npcId,
-                                                                        npcsServer[npcIndex].healthCurrent, // damage taken, assumed to be current health
-                                                                        npcsServer[npcIndex].healthCurrent,
-                                                                        npcsServer[npcIndex].healthMax,
+                                                                        npc.npcId,
+                                                                        npc.healthCurrent, // damage taken, assumed to be current health
+                                                                        npc.healthCurrent,
+                                                                        npc.healthMax,
                                                                         lastAmmo, // arrow/bolt/knife/dart/spear was determined in inventory updates
                                                                         bow,
                                                                         playerCurStat[4], // ranged level
                                                                         1 // killshot
                                                                     )
                                                             );
+
 
                                                             break;
                                                         case 3: // gnomeball
@@ -943,8 +965,8 @@ public class ScraperProcessor implements Runnable {
                                                             break;
                                                     }
 
-                                                    npcsServer[npcIndex].attackingPlayerServerIndex = -1;
-                                                    npcsServer[npcIndex].incomingProjectileSprite = -1;
+                                                    npc.attackingPlayerServerIndex = -1;
+                                                    npc.incomingProjectileSprite = -1;
                                                 }
                                             }
 
@@ -1393,6 +1415,11 @@ public class ScraperProcessor implements Runnable {
                         playerBaseStat[stat] = packet.readByte();
                         playerXP[stat] = packet.readUnsignedInt();
                         break;
+
+                    case PacketBuilder.OPCODE_PLAY_SOUND: // 204
+                        lastSound = packet.readPaddedString();
+                        break;
+
 
                     default:
                         break;

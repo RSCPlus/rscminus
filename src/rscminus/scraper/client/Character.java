@@ -14,11 +14,11 @@ public final class Character {
     public int waypointCurrent;
     public int animationCurrent;
     public int skullVisible = 0;
-    public int incomingProjectileSprite = 0;
+    public int incomingProjectileSprite = -1;
     public int bubbleTimeout = 0;
     public int colourBottom;
     public String displayName;
-    public int attackingPlayerServerIndex = 0;
+    public int attackingPlayerServerIndex = -1;
     public int lastAttackerIndex = -1;
     public int lastSprite = -1;
     public int serverIndex;
@@ -28,7 +28,7 @@ public final class Character {
     public int colourHair;
     public int level = -1;
     public int npcId;
-    public int attackingNpcServerIndex = 0;
+    public int attackingNpcServerIndex = -1;
     public int[] waypointsY = new int[10];
     public int colourSkin;
     public int animationNext;

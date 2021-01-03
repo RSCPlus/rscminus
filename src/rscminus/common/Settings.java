@@ -24,7 +24,7 @@ import java.net.URL;
 
 public class Settings {
   // rscminus version number
-  public static String versionNumber = "0.2.0a";
+  public static String versionNumber = "0.3.0a";
 
   // Logger Settings
   public static int LOG_VERBOSITY = 3;
@@ -59,6 +59,7 @@ public class Settings {
   public static boolean dumpAppearances = false;
   public static boolean checkBoundaryRemoval = false;
   public static String scraperOutputPath = "dump";
+  public static int threads = 5;
 
   // Utils that probably don't belong in settings, but are in Settings.java in RSC+
   public static class Dir {

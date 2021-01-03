@@ -40,10 +40,13 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static rscminus.common.Settings.dumpNPCDamage;
 import static rscminus.common.Settings.initDir;
 import static rscminus.scraper.ReplayEditor.appendingToReplay;
 
 public class Scraper {
+    public static long startTime = 0;
+
     public static HashMap<Integer, Integer> m_sceneryLocs = new HashMap<Integer, Integer>();
     public static HashMap<Integer, Integer> m_boundaryLocs = new HashMap<Integer, Integer>();
 
@@ -178,9 +181,6 @@ public class Scraper {
                     break;
                 case "-b":
                     Settings.checkBoundaryRemoval = true;
-                    JGameData.init(true);
-                    worldManager = new WorldManager();
-                    worldManager.init();
                     break;
                 case "-c":
                     Settings.dumpChat = true;
@@ -199,7 +199,6 @@ public class Scraper {
                     return false;
                 case "-i":
                     Settings.dumpInventories = true;
-                    JGameData.init(true);
                     break;
                 case "-m":
                     Settings.dumpMessages = true;
@@ -215,12 +214,14 @@ public class Scraper {
                     break;
                 case "-r":
                     Settings.dumpNPCDamage = true;
-                    JGameData.init(true);
                     Logger.Info("dump NPC damage sources set");
                     break;
                 case "-s":
                     Settings.sanitizeReplays = true;
                     Logger.Info("sanitize Replays set");
+                    break;
+                case "-t":
+                    Settings.threads = Integer.parseInt(arg.toLowerCase().substring(2));
                     break;
                 case "-v":
                     try {
@@ -248,10 +249,26 @@ public class Scraper {
                     // Invalid argument
                     if (arg.charAt(0) == '-')
                         return false;
+                    // assume that we have reached the final filepath argument
                     Settings.sanitizePath = arg;
+
+                    // initialize info needed by each scraper method
+                    if (Settings.dumpNPCDamage ||
+                        Settings.checkBoundaryRemoval ||
+                        Settings.dumpInventories
+                    ) {
+                        JGameData.init(true);
+                    }
+
+                    if (Settings.checkBoundaryRemoval) {
+                        worldManager = new WorldManager();
+                        worldManager.init();
+                    }
+
                     return true;
             }
         }
+
         return false;
     }
 
@@ -278,7 +295,7 @@ public class Scraper {
     public static void processDirectory(String path) {
         findReplayDirectories(path);
 
-        ExecutorService executor = Executors.newFixedThreadPool(5); // TODO: set threads here
+        ExecutorService executor = Executors.newFixedThreadPool(Settings.threads);
 
         for (String replayDirectory : replayDirectories) {
             Runnable sp = new ScraperProcessor(replayDirectory);
@@ -288,7 +305,8 @@ public class Scraper {
         executor.shutdown();
         while (!executor.isTerminated()) {
         }
-        System.out.println("Finished all threads");
+
+        Logger.Info("@|cyan Finished processing all replays in " + ((float)(System.currentTimeMillis() - startTime) / 1000) + " seconds! |@");
     }
 
 
@@ -377,7 +395,7 @@ public class Scraper {
             // print help on how to use command line
             printHelp(args);
 
-          // then initialize and show the gui
+            // then initialize and show the gui
             try {
                 setStripperWindow(new StripperWindow());
                 stripperWindow.showStripperWindow();
@@ -394,6 +412,8 @@ public class Scraper {
                     Settings.dumpSleepWords ||
                     Settings.sanitizeReplays
             ) {
+                startTime = System.currentTimeMillis();
+                Logger.Info(String.format("@|magenta,intensity_bold Using %d thread%s|@", Settings.threads, Settings.threads == 1 ? "" : "s"));
                 strip();
             }
             return;
