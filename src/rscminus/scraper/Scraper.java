@@ -47,12 +47,12 @@ public class Scraper {
     public static HashMap<Integer, Integer> m_sceneryLocs = new HashMap<Integer, Integer>();
     public static HashMap<Integer, Integer> m_boundaryLocs = new HashMap<Integer, Integer>();
 
-    public static ArrayList<String> m_npcLocCSV = new ArrayList<String>();
-    public static ArrayList<String> m_replayDictionarySQL = new ArrayList<String>();
-    public static ArrayList<String> m_chatSQL = new ArrayList<String>();
-    public static ArrayList<String> m_messageSQL = new ArrayList<String>();
-    public static ArrayList<String> m_inventorySQL = new ArrayList<String>();
-    public static ArrayList<String> m_damageSQL = new ArrayList<String>();
+    public static List<String> m_npcLocCSV = Collections.synchronizedList(new ArrayList<String>());
+    public static List<String> m_replayDictionarySQL = Collections.synchronizedList(new ArrayList<String>());
+    public static List<String> m_chatSQL = Collections.synchronizedList(new ArrayList<String>());
+    public static List<String> m_messageSQL = Collections.synchronizedList(new ArrayList<String>());
+    public static List<String> m_inventorySQL = Collections.synchronizedList(new ArrayList<String>());
+    public static List<String> m_damageSQL = Collections.synchronizedList(new ArrayList<String>());
 
     // Settings
     public static int sanitizeVersion = -1; // can set replay version (shouldn't though)
@@ -128,16 +128,21 @@ public class Scraper {
         }
     }
 
-    private static void dumpSQLToFile(ArrayList<String> sqlStatements, String identifier, String fname) {
+    private static void dumpSQLToFile(List<String> sqlStatements, String identifier, String fname) {
         try {
             int size = (sqlStatements.size() - 1);
+            int nullCount = 0;
             Logger.Info(String.format("@|green There's a whopping %d %s%s to dump. Please hold.|@", size, identifier, size == 1 ? "" : "s"));
             DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(fname)));
             for (String entry : sqlStatements) {
+                if (entry == null) {
+                    nullCount++;
+                    continue;
+                }
                 out.writeBytes(entry);
             }
             out.close();
-            Logger.Info(String.format("@|green,intensity_bold Dumped %d %s sql statement%s!|@", size, identifier, size == 1 ? "" : "s"));
+            Logger.Info(String.format("@|green,intensity_bold Dumped %d %s sql statement%s!|@", size - nullCount, identifier, size == 1 ? "" : "s"));
         } catch (Exception e) {
             e.printStackTrace();
         }
