@@ -21,6 +21,7 @@ package rscminus.game;
 
 import rscminus.common.ISAACCipher;
 import rscminus.common.JGameData;
+import rscminus.common.SleepWord;
 import rscminus.game.constants.Game;
 import rscminus.game.data.SaveInfo;
 import rscminus.game.entity.Scenery;
@@ -37,10 +38,12 @@ public class PacketBuilder {
     public static final int OPCODE_SET_INVENTORY = 53;
     public static final int OPCODE_SET_APPEARANCE = 59;
     public static final int OPCODE_CREATE_NPC = 79;
+    public static final int OPCODE_WAKE_UP = 84;
     public static final int OPCODE_SEND_PM = 87;
     public static final int OPCODE_SET_INVENTORY_SLOT = 90;
     public static final int OPCODE_BOUNDARY_HANDLER = 91;
     public static final int OPCODE_GROUNDITEM_HANDLER = 99;
+    public static final int OPCODE_SHOW_SHOP = 101;
     public static final int OPCODE_UPDATE_NPC = 104;
     public static final int OPCODE_SET_IGNORE = 109;
     public static final int OPCODE_SKIP_TUTORIAL = 111;
@@ -63,6 +66,8 @@ public class PacketBuilder {
     public static final int OPCODE_UPDATE_IGNORE = 237;
     public static final int OPCODE_GAME_SETTINGS = 240;
     public static final int OPCODE_DIALOGUE_OPTIONS = 245;
+
+    public static String currentSleepDataFilename;
 
     private static int m_offset = 0;
     private static int m_count = 0;
@@ -224,6 +229,16 @@ public class PacketBuilder {
         stream.endPacket();
     }
 
+    public static void updateStat(int skill, int effectiveLevel, int baseLevel, int xp, NetworkStream stream, ISAACCipher isaacCipher) {
+        stream.startPacket();
+        stream.writeOpcode(OPCODE_UPDATE_STAT, isaacCipher);
+        stream.writeUnsignedByte(skill);
+        stream.writeUnsignedByte(effectiveLevel);
+        stream.writeUnsignedByte(baseLevel);
+        stream.writeUnsignedInt(xp);
+        stream.endPacket();
+    }
+
     public static void setStats(SaveInfo saveInfo, int questPoints, NetworkStream stream, ISAACCipher isaacCipher) {
         stream.startPacket();
         stream.writeOpcode(OPCODE_SET_STATS, isaacCipher);
@@ -235,6 +250,15 @@ public class PacketBuilder {
             stream.writeUnsignedInt(saveInfo.statXP[i]);
         stream.writeUnsignedByte(questPoints);
         stream.endPacket();
+    }
+
+    public static void updateXP(int skill, int xp, NetworkStream stream, ISAACCipher isaacCipher) {
+        stream.startPacket();
+        stream.writeOpcode(OPCODE_UPDATE_XP, isaacCipher);
+        stream.writeUnsignedByte(skill);
+        stream.writeUnsignedInt(xp);
+        stream.endPacket();
+
     }
 
     public static void logout(NetworkStream stream, ISAACCipher isaacCipher) {
@@ -336,10 +360,10 @@ public class PacketBuilder {
         stream.writeUnsignedByte(1 + saveInfo.headType); // Equipment Count
         stream.writeUnsignedByte(1 + saveInfo.top); // Equipment Count
         stream.writeUnsignedByte(1 + saveInfo.bottom); // Equipment Count
-        stream.writeUnsignedByte(saveInfo.hairColor); // Hair color
-        stream.writeUnsignedByte(saveInfo.topColor); // Top color
-        stream.writeUnsignedByte(saveInfo.bottomColor); // Bottom color
-        stream.writeUnsignedByte(saveInfo.skinColor); // Skin color
+        stream.writeUnsignedByte(saveInfo.hairColour); // Hair color
+        stream.writeUnsignedByte(saveInfo.topColour); // Top color
+        stream.writeUnsignedByte(saveInfo.bottomColour); // Bottom color
+        stream.writeUnsignedByte(saveInfo.skinColour); // Skin color
         stream.writeUnsignedByte(3); // Level
         stream.writeUnsignedByte(0); // Skull
         ++m_count;
@@ -359,6 +383,22 @@ public class PacketBuilder {
         stream.writeUnsignedByte(cameraAuto ? 1 : 0);
         stream.writeUnsignedByte(mouseOneButton ? 1 : 0);
         stream.writeUnsignedByte(soundDisabled ? 1 : 0);
+        stream.endPacket();
+    }
+    public static void wakeUp(NetworkStream stream, ISAACCipher isaacCipher) {
+        stream.startPacket();
+        stream.writeOpcode(OPCODE_WAKE_UP, isaacCipher);
+        stream.endPacket();
+    }
+
+    public static void sendSleepWord(SleepWord sleepData, NetworkStream stream, ISAACCipher isaacCipher) {
+        stream.startPacket();
+        stream.writeOpcode(OPCODE_SLEEP_WORD, isaacCipher);
+        currentSleepDataFilename = sleepData.filename;
+        int sizeToWrite = sleepData.cheaterData.length;
+        if (stream.getAvailable() < sizeToWrite)
+            sizeToWrite = stream.getAvailable();
+        stream.writeArray(sleepData.cheaterData, 0, sizeToWrite);
         stream.endPacket();
     }
 }

@@ -95,10 +95,26 @@ public class PlayerManager {
 
     public void removePlayer(int index) {
         if (m_players[index].isActive()) {
-            // TODO: Handle saving
+
+            // TODO: Handle saving authentically with login server support
+            // Although player data *is* stored in flat files,
+            // it is most likely not stored in JSON files because RuneScape predates JSON by a few months.
+            m_players[index].getSaveInfo().save(m_players[index].getLoginInfo());
+
             m_worldManager.removePlayer(m_players[index]);
             m_players[index].reset();
             System.out.println("remove slot: " + index);
+        }
+    }
+
+    // only called when server is shut down.
+    // not safe to use if server is still accepting new connections,
+    // since this function won't complete instantaneously.
+    public void saveAllPlayers() {
+        for (Player player : m_players) {
+            if (player.isActive()) {
+                player.getSaveInfo().save(player.getLoginInfo());
+            }
         }
     }
 

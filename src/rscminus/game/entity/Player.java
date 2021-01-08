@@ -55,8 +55,11 @@ public class Player extends Entity {
     public static final int OPCODE_INTERACT_WALLOBJECT_OPTION1 = 14;
     public static final int OPCODE_WALKTO_SOURCE = 16;
     public static final int OPCODE_DISCONNECT = 31;
+    public static final int OPCODE_COMMANDSTRING = 38;
+    public static final int OPCODE_SLEEPWORD = 45;
     public static final int OPCODE_KEEPALIVE = 67;
     public static final int OPCODE_INTERACT_OBJECT_OPTION2 = 79;
+    public static final int OPCODE_ACTIVATE_INVENTORY_ITEM_SLOT = 90;
     public static final int OPCODE_LOGOUT = 102;
     public static final int OPCODE_INTERACT_WALLOBJECT_OPTION2 = 127;
     public static final int OPCODE_INTERACT_OBJECT_OPTION1 = 136;
@@ -146,9 +149,15 @@ public class Player extends Entity {
         return m_loginInfo.username;
     }
 
+    public LoginInfo getLoginInfo() {
+        return m_loginInfo;
+    }
+
     public SaveInfo getSaveInfo() {
         return  m_saveInfo;
     }
+
+    public int getSkillXP(int skill) { return m_saveInfo.statXP[skill]; }
 
     public int getX() {
         return m_saveInfo.x;
@@ -209,6 +218,63 @@ public class Player extends Entity {
         m_direction = direction;
     }
 
+
+    public void awardXP(int skill, int xp, NetworkStream stream, ISAACCipher isaacCipher) {
+        m_saveInfo.statXP[skill] += xp;
+        PacketBuilder.updateXP(skill, m_saveInfo.statXP[skill], stream, isaacCipher);
+        checkAndAwardLevelUp(skill, stream, isaacCipher);
+    }
+
+    public void awardXPWithFatigue(int skill, int xp, NetworkStream stream, ISAACCipher isaacCipher) {
+        awardXP(skill, xp, stream, isaacCipher);
+        checkAndAwardLevelUp(skill, stream, isaacCipher);
+
+        // Calculates Fatigue Awarded.
+        // TODO: investigate this, using wiki claimed values.
+        int authenticXPMultiplierValue = 16;
+        m_saveInfo.fatigue += xp * authenticXPMultiplierValue;
+        if (m_saveInfo.fatigue > 75000) {
+            m_saveInfo.fatigue = 75000;
+        }
+        setFatigue(m_saveInfo.fatigue, stream, isaacCipher);
+    }
+    public void setFatigue(int fatigue, NetworkStream stream, ISAACCipher isaacCipher) {
+        m_saveInfo.fatigue = fatigue;
+       PacketBuilder.setFatigue(m_saveInfo, stream, isaacCipher);
+    }
+
+    public void updateStat(int skill, int effectiveLevel, int baseLevel, int xp, NetworkStream stream, ISAACCipher isaacCipher) {
+        m_saveInfo.statCurrent[skill] = effectiveLevel;
+        m_saveInfo.statMax[skill] = baseLevel;
+        m_saveInfo.statXP[skill] = xp;
+        PacketBuilder.updateStat(skill, effectiveLevel, baseLevel, xp, stream, isaacCipher);
+    }
+
+    public void checkAndAwardLevelUp(int skill, NetworkStream stream, ISAACCipher isaacCipher) {
+        // can no longer level up once player has reached 99
+        if (m_saveInfo.statMax[skill] >= Game.xpLevelTable.length) {
+            return;
+        }
+
+        // calculate levels gained with this action
+        int levelsGained = 0;
+        while (Game.xpLevelTable[m_saveInfo.statMax[skill] + levelsGained] <= m_saveInfo.statXP[skill]) {
+            ++levelsGained;
+        }
+
+        // play fanfare & update player stats
+        if (levelsGained > 0) {
+            playSound("advance");
+            PacketBuilder.sendMessage(Game.CHAT_NONE,
+                String.format("You just advanced %d %s level!", levelsGained, Game.STAT_NAMES[skill]), // this message authentically is not plural if levelsGained > 1
+                null, null, "@gre@", stream, isaacCipher);
+            m_saveInfo.statCurrent[skill] += levelsGained;
+            m_saveInfo.statMax[skill] += levelsGained;
+            Logger.Info(String.format("@|green %s just reached level %d %s!|@", getUsername(), m_saveInfo.statMax[skill], Game.STAT_NAMES[skill]));
+            updateStat(skill, m_saveInfo.statCurrent[skill], m_saveInfo.statMax[skill], m_saveInfo.statXP[skill], stream, isaacCipher);
+        }
+    }
+
     public void closeSocket() {
         if (m_socket != null) {
             SocketUtil.close(m_socket);
@@ -225,12 +291,13 @@ public class Player extends Entity {
     public void sendClientState() {
         PacketBuilder.privacySettings(false, false, false, false, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.sendMessage(Game.CHAT_QUEST, "Welcome to " + Server.getInstance().getName() + "!", null, null, null, m_outgoingStream, m_isaacOutgoing);
+        PacketBuilder.sendMessage(Game.CHAT_QUEST, "Try typing @whi@::wakemeup@ran@ when you are finished sleeping!", null, null, "@ran@", m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.gameSettings(false, false, false, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.setFloor(m_index, getFloor(), m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.questStatus(m_questComplete, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.skipTutorial(m_tutorial, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.showWelcome(0x7F000001, 0, Game.WELCOME_RECOVERY_UNSET, Game.WELCOME_MESSAGES_SHOW, m_outgoingStream, m_isaacOutgoing);
-        m_saveInfo.inventoryCount = 11;
+        m_saveInfo.inventoryCount = 12;
         m_saveInfo.inventory[0] = 124;
         m_saveInfo.inventoryStack[0] = 1;
         m_saveInfo.inventoryEquipped[0] = false;
@@ -264,6 +331,9 @@ public class Player extends Entity {
         m_saveInfo.inventory[10] = 117;
         m_saveInfo.inventoryStack[10] = 1;
         m_saveInfo.inventoryEquipped[10] = false;
+        m_saveInfo.inventory[11] = 1263;
+        m_saveInfo.inventoryStack[10] = 1;
+        m_saveInfo.inventoryEquipped[10] = false;
         PacketBuilder.setInventory(m_saveInfo, m_outgoingStream, m_isaacOutgoing);
 
         // Repeat setting floor unnecessarily b/c it is authentic
@@ -273,7 +343,9 @@ public class Player extends Entity {
         PacketBuilder.setEquipStats(m_equipmentStats, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.setPrayers(m_prayers, m_outgoingStream, m_isaacOutgoing);
         PacketBuilder.setFatigue(m_saveInfo, m_outgoingStream, m_isaacOutgoing);
-        PacketBuilder.setAppearance(m_outgoingStream, m_isaacOutgoing);
+        if (m_saveInfo.firstLogin) {
+            PacketBuilder.setAppearance(m_outgoingStream, m_isaacOutgoing);
+        }
     }
 
     public void playSound(String name) {
@@ -286,7 +358,7 @@ public class Player extends Entity {
     }
 
     public void removeInventoryItem(int index) {
-        // Index is to high
+        // Index is too high
         if (index >= m_saveInfo.inventoryCount)
             return;
 
@@ -643,17 +715,17 @@ public class Player extends Entity {
                 int headType = m_packetStream.readUnsignedByte();
                 int top = m_packetStream.readUnsignedByte();
                 int bottom = m_packetStream.readUnsignedByte();
-                int hairColor = m_packetStream.readUnsignedByte();
-                int topColor = m_packetStream.readUnsignedByte();
-                int bottomColor = m_packetStream.readUnsignedByte();
-                int skinColor = m_packetStream.readUnsignedByte();
+                int hairColour = m_packetStream.readUnsignedByte();
+                int topColour = m_packetStream.readUnsignedByte();
+                int bottomColour = m_packetStream.readUnsignedByte();
+                int skinColour = m_packetStream.readUnsignedByte();
                 m_saveInfo.headType = headType;
                 m_saveInfo.top = top;
                 m_saveInfo.bottom = bottom;
-                m_saveInfo.hairColor = hairColor;
-                m_saveInfo.topColor = topColor;
-                m_saveInfo.bottomColor = bottomColor;
-                m_saveInfo.skinColor = skinColor;
+                m_saveInfo.hairColour = hairColour;
+                m_saveInfo.topColour = topColour;
+                m_saveInfo.bottomColour = bottomColour;
+                m_saveInfo.skinColour = skinColour;
                 m_updateAppearance = true;
                 break;
             }
@@ -669,6 +741,42 @@ public class Player extends Entity {
                 decipheredMessage = ChatFilter.filter(decipheredMessage);
                 ChatCipher.encipher(decipheredMessage, chatMessage);
                 m_updateChat = true;
+                break;
+            case OPCODE_ACTIVATE_INVENTORY_ITEM_SLOT:
+                m_packetStream.readUnsignedByte();
+                int slot = m_packetStream.readUnsignedByte();
+                if (m_saveInfo.inventory[slot] == 1263) {
+                    PacketBuilder.sendSleepWord(SleepWordGenerator.getRandomSleepword(), m_outgoingStream, m_isaacOutgoing);
+                }
+                break;
+
+            case OPCODE_SLEEPWORD:
+                // tempting to check accuracy, but this is really only in order to rename unknown sleeps atm.
+                m_packetStream.readUnsignedByte();
+                int delay = m_packetStream.readUnsignedByte();
+                String guess = m_packetStream.readString();
+
+                // TODO: this inauthentic, but I wanna keep the sleepwords coming
+                PacketBuilder.wakeUp(m_outgoingStream, m_isaacOutgoing);
+                if (!guess.equals("::wakemeup")) {
+
+                    Logger.Info(String.format("Sleepword guess for @@@@%s@@@@ was: @@@@%s@@@@ by %s", PacketBuilder.currentSleepDataFilename, guess, getUsername()));
+                    awardXP(Game.STAT_MAGIC, 50 * 4, m_outgoingStream, m_isaacOutgoing); // Orbrun wanted incentive to type captchas lol.
+                    PacketBuilder.sendSleepWord(SleepWordGenerator.getRandomSleepword(), m_outgoingStream, m_isaacOutgoing);
+
+                } else {
+                    PacketBuilder.sendMessage(3,"Thanks for your help! You wake up feeling refreshed. ;)", "", "", "@whi@", m_outgoingStream, m_isaacOutgoing);
+                }
+                break;
+            case OPCODE_COMMANDSTRING:
+                m_packetStream.readUnsignedByte();
+                String command = m_packetStream.readString();
+                if (command.equals("shutdownGracefully")) {
+                    Logger.Info(String.format("Got shutdown request from %s.", getUsername()));
+                    Server.getInstance().shutdownGracefully();
+                } else {
+                    Logger.Info(String.format("Command \"::%s\" Attempted by %s", command, getUsername()));
+                }
                 break;
             default:
                 System.out.println("undefined opcode: " + opcode + ", length: " + length);
