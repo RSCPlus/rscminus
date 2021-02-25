@@ -56,10 +56,43 @@ public class JGameData {
 
     public static byte regionCollisionMask[][][][];
     public static byte regionDirection[][][][];
+    public static int regionMap[][][][];
+
+    public static short terrainWallNorthSouth[][][][];
+    public static short terrainWallEastWest[][][][];
+    public static short terrainWallDiagonal[][][][];
+    public static short terrainHeight[][][][];
+    public static short terrainColor[][][][];
+    public static int terrainColorPalette[];
+
+    public static int method307(int var0, int var2, int var3) {
+        //return -(var0 / 8) + -(var2 / 8 * 1024) + (-1 - var3 / 8 * 32);
+        return (var2) << 24 | (var3) << 16 | (var0) << 8 | 0xFF;
+    }
 
     public static boolean init(boolean member) {
         JContent content = new JContent();
         JContent contentMembers = new JContent();
+        JContent landscapeContent = new JContent();
+        JContent landscapeContentMembers = new JContent();
+
+        // Generate landscape color palette
+        terrainColorPalette = new int[256];
+        for (int var3 = 0; var3 < 64; ++var3) {
+            terrainColorPalette[var3] = method307(-(4 * var3) + 255, 255 - var3 * 4, -((int) ((double) var3 * 1.75D)) + 255);
+        }
+
+        for (int var4 = 0; var4 < 64; ++var4) {
+            terrainColorPalette[var4 + 64] = method307(0, var4 * 3, 144);
+        }
+
+        for (int var5 = 0; var5 < 64; ++var5) {
+            terrainColorPalette[128 + var5] = method307(0, 192 - (int) ((double) var5 * 1.5D), 144 - (int) ((double) var5 * 1.5D));
+        }
+
+        for (int var6 = 0; var6 < 64; ++var6) {
+            terrainColorPalette[192 + var6] = method307(0, -((int) (1.5D * (double) var6)) + 96, 48 + (int) (1.5D * (double) var6));
+        }
 
         // Read content0 (Configuration)
         if(!content.open("content0_229aa476"))
@@ -298,8 +331,20 @@ public class JGameData {
         int maxRegionHeight = Game.WORLD_HEIGHT / Game.REGION_HEIGHT;
         regionCollisionMask = new byte[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
         regionDirection = new byte[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+        regionMap = new int[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+
+        // Initialize terrain data
+        terrainWallNorthSouth = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+        terrainWallEastWest = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+        terrainWallDiagonal = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+        terrainHeight = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+        terrainColor = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
 
         // Read content6 (landscape)
+        if (!landscapeContent.open("content6_ffffffffe997514b"))
+            return false;
+        if (!landscapeContentMembers.open("content7_3fc5d9e3"))
+            return false;
         if (!content.open("content4_ffffffffaaca2b0d"))
             return false;
         if (!contentMembers.open("content5_6a1d6b00"))
@@ -307,8 +352,8 @@ public class JGameData {
         for (int x = 0; x < maxRegionWidth; x++) {
             for (int y = 0; y < maxRegionHeight; y++) {
                 for (int floor = 0; floor < Game.REGION_FLOORS; floor++) {
-                    if(!loadLandscape(content, x, y, floor) && member)
-                        loadLandscape(contentMembers, x, y, floor);
+                    if(!loadLandscape(content, landscapeContent, x, y, floor) && member)
+                        loadLandscape(contentMembers, landscapeContentMembers, x, y, floor);
                 }
             }
         }
@@ -318,27 +363,90 @@ public class JGameData {
         return true;
     }
 
-    private static boolean loadLandscape(JContent content, int x, int y, int floor) {
+    private static boolean loadLandscape(JContent content, JContent landscape, int x, int y, int floor) {
+        // Initialize collisions to collidable
+        for (int i = 0; i < Game.REGION_SIZE; i++)
+            regionCollisionMask[x][y][floor][i] = Game.COLLISION_TILE;
+        regionMap[x][y][floor] = null;
+
         String mapName = "m" + floor + x / 10 + x % 10 + y / 10 + y % 10;
 
-        JContentFile map = content.unpack(mapName + ".dat");
-        if (map == null) {
-            // Initialize collisions to collidable
-            for (int i = 0; i < Game.REGION_SIZE; i++)
-                regionCollisionMask[x][y][floor][i] = Game.COLLISION_TILE;
+        JContentFile map = landscape.unpack(mapName + ".hei");
+
+        if (map == null)
             return false;
+
+        // Load height
+        int prevHeight = 0;
+        int index = 0;
+        while (index < Game.REGION_SIZE) {
+            int data = map.readUnsignedByte();
+            if (data < 128) {
+                prevHeight = data;
+                terrainHeight[x][y][floor][index++] = (byte)data;
+            }
+
+            if (data >= 128) {
+                for (int j = 0; j < data - 128; ++j)
+                    terrainHeight[x][y][floor][index++] = (byte)prevHeight;
+            }
         }
+
+        prevHeight = 64;
+
+        for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
+            for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
+                int posIndex = Game.REGION_WIDTH * posY + posX;
+                prevHeight = 127 & terrainHeight[x][y][floor][posIndex] + prevHeight;
+                terrainHeight[x][y][floor][posIndex] = (byte)(prevHeight * 2);
+            }
+        }
+
+        // Load color
+        prevHeight = 0;
+        index = 0;
+        while (index < Game.REGION_SIZE) {
+            int data = map.readUnsignedByte();
+            if (data < 128) {
+                prevHeight = data;
+                terrainColor[x][y][floor][index++] = (short)data;
+            }
+
+            if (data >= 128) {
+                for (int j = 0; j < data - 128; ++j)
+                    terrainColor[x][y][floor][index++] = (short)prevHeight;
+            }
+        }
+
+        prevHeight = 35;
+
+        for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
+            for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
+                int posIndex = Game.REGION_WIDTH * posY + posX;
+                prevHeight = 127 & terrainColor[x][y][floor][posIndex] + prevHeight;
+                terrainColor[x][y][floor][posIndex] = (short)(prevHeight * 2);
+            }
+        }
+
+        map.close();
+
+        map = content.unpack(mapName + ".dat");
+        if (map == null)
+            return false;
 
         // Clear collisions
         for (int i = 0; i < Game.REGION_SIZE; i++)
             regionCollisionMask[x][y][floor][i] = Game.COLLISION_NONE;
 
+        // North/South Walls
         for (int i = 0; i < Game.REGION_SIZE; i++) {
             int id = map.readUnsignedByte();
+            terrainWallNorthSouth[x][y][floor][i] = (short)id;
             regionCollisionMask[x][y][floor][i] |= (id > 0 && JGameData.boundaryPassable[id - 1] && JGameData.boundaryAdjacent[id - 1]) ? Game.COLLISION_EASTWEST : Game.COLLISION_NONE;
         }
         for (int i = 0; i < Game.REGION_SIZE; i++) {
             int id = map.readUnsignedByte();
+            terrainWallEastWest[x][y][floor][i] = (short)id;
             regionCollisionMask[x][y][floor][i] |= (id > 0 && JGameData.boundaryPassable[id - 1] && JGameData.boundaryAdjacent[id - 1]) ? Game.COLLISION_NORTHSOUTH : Game.COLLISION_NONE;
         }
 
@@ -349,6 +457,7 @@ public class JGameData {
             int val = map.readUnsignedByte();
             if (val > 0)
                 data[i] = 12000 + val;
+            terrainWallDiagonal[x][y][floor][i] = (short)data[i];
 
             int id = data[i];
             regionCollisionMask[x][y][floor][i] |= (id > 0 && id < 12000 && JGameData.boundaryPassable[id - 1] && JGameData.boundaryAdjacent[id - 1]) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
@@ -402,9 +511,13 @@ public class JGameData {
             }
         }
 
-        System.out.println(mapName);
-
         map.close();
+
+        // Create map tile
+        regionMap[x][y][floor] = new int[Game.REGION_SIZE];
+        for (int i = 0; i < Game.REGION_SIZE; i++) {
+            regionMap[x][y][floor][i] = 0xFFFFFFFF;
+        }
 
         return true;
     }

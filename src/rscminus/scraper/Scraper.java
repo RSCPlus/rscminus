@@ -29,9 +29,13 @@ import rscminus.game.constants.Game;
 import rscminus.game.world.ViewRegion;
 import rscminus.scraper.client.Character;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.*;
 import java.io.*;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -62,6 +66,8 @@ public class Scraper {
     public static ArrayList<String> replayDirectories = new ArrayList<String>();
     public static boolean scraping = false;
     public static boolean stripping = false;
+    public static boolean makingWorldMap = false;
+    public static boolean gameDataAvailable = false;
     public static int ipFoundCount = 0;
     public static int replaysProcessedCount = 0;
 
@@ -248,13 +254,8 @@ public class Scraper {
                     // assume that we have reached the final filepath argument
                     Settings.sanitizePath = arg;
 
-                    // initialize info needed by each scraper method
-                    if (Settings.dumpNPCDamage ||
-                        Settings.checkBoundaryRemoval ||
-                        Settings.dumpInventories
-                    ) {
-                        JGameData.init(true);
-                    }
+                    // initialize game data
+                    gameDataAvailable = JGameData.init(true);
 
                     if (Settings.checkBoundaryRemoval) {
                         worldManager = new WorldManager();
@@ -383,8 +384,110 @@ public class Scraper {
         ipFoundCount = 0;
     }
 
+    public static void dumpWorldMap(String fname) {
+        if (!gameDataAvailable)
+            return;
+
+        for (int floor = 0; floor < Game.REGION_FLOORS; floor++)
+        {
+            int tileSize = 3;
+            int halfTileSize = tileSize / 2;
+            int maxRegionWidth = Game.WORLD_WIDTH / Game.REGION_WIDTH;
+            int maxRegionHeight = Game.WORLD_HEIGHT / Game.REGION_HEIGHT;
+            int width = (maxRegionWidth * Game.REGION_WIDTH) * tileSize;
+            int height = (maxRegionHeight * Game.REGION_HEIGHT) * tileSize;
+            int stride = 4;
+            byte[] data = new byte[width * height * stride];
+
+            for (int x = 0; x < maxRegionWidth; x++) {
+                for (int y = 0; y < maxRegionHeight; y++) {
+                    int[] regionMapData = JGameData.regionMap[x][y][floor];
+                    short[] terrainWallNorthSouth = JGameData.terrainWallNorthSouth[x][y][floor];
+                    short[] terrainWallEastWest = JGameData.terrainWallEastWest[x][y][floor];
+                    short[] terrainHeight = JGameData.terrainHeight[x][y][floor];
+                    short[] terrainColor = JGameData.terrainColor[x][y][floor];
+                    int chunkX = x * Game.REGION_WIDTH;
+                    int chunkY = y * Game.REGION_HEIGHT;
+
+                    for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
+                        for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
+                            int worldPosX = chunkX + posX;
+                            int worldPosY = chunkY + posY;
+                            int mapIndex = (posY * Game.REGION_WIDTH) + posX;
+
+                            // Set tile color
+                            int pixel;
+                            if (floor == 0)
+                                pixel = 0x1B3C7BFF; // Ocean
+                            else
+                                pixel = 0x000000FF; // Blackness
+
+                            int tileHeight = 0;
+                            int tileColor = 0;
+                            if (regionMapData != null) {
+                                tileHeight = terrainHeight[mapIndex];
+                                tileColor = terrainColor[mapIndex];
+                            }
+
+                            for (int rasterPosX = 0; rasterPosX < tileSize; rasterPosX++)
+                            {
+                                for (int rasterPosY = 0; rasterPosY < tileSize; rasterPosY++)
+                                {
+                                    // Use map tile color instead
+                                    if (regionMapData != null)
+                                    {
+                                        // Handle wall tiles
+                                        boolean wallRendered = false;
+                                        if (terrainWallNorthSouth[mapIndex] > 0) {
+                                            if (rasterPosY == halfTileSize)
+                                                wallRendered = true;
+                                        } else if (terrainWallEastWest[mapIndex] > 0) {
+                                            if (rasterPosX == halfTileSize)
+                                                wallRendered = true;
+                                        }
+
+                                        // Set terrain tile
+                                        if (!wallRendered) {
+                                            {
+                                                pixel = JGameData.terrainColorPalette[tileColor];
+                                            }
+                                        } else {
+                                            pixel = 0x616161FF;
+                                        }
+                                    }
+
+                                    int rasterX = worldPosX * tileSize + rasterPosX;
+                                    int rasterY = worldPosY * tileSize + rasterPosY;
+                                    int rasterIndex = ((rasterY * width) + rasterX) * stride;
+
+                                    data[rasterIndex] = (byte) ((pixel >> 24) & 0xFF);
+                                    data[rasterIndex + 1] = (byte) ((pixel >> 16) & 0xFF);
+                                    data[rasterIndex + 2] = (byte) ((pixel >> 8) & 0xFF);
+                                    data[rasterIndex + 3] = (byte) (pixel & 0xFF);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save PNG
+            DataBuffer buffer = new DataBufferByte(data, data.length);
+            WritableRaster raster = Raster.createInterleavedRaster(buffer, width, height, stride * width, stride, new int[] {0, 1, 2, 3}, (Point)null);
+            ColorModel cm = new ComponentColorModel(ColorModel.getRGBdefault().getColorSpace(), true, true, Transparency.TRANSLUCENT, DataBuffer.TYPE_BYTE);
+            BufferedImage image = new BufferedImage(cm, raster, true, null);
+            try {
+                ImageIO.write(image, "png", new File("worldMap_floor_" + floor + ".png"));
+            } catch (Exception e) {}
+        }
+
+        return;
+    }
+
     public static void main(String args[]) {
         initDir();
+        gameDataAvailable = JGameData.init(true);
+
         Logger.Info("Dir.JAR: " + Settings.Dir.JAR);
 
         if (!parseArguments(args)) {

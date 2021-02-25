@@ -120,31 +120,35 @@ public class StripperWindow {
     JScrollPane aboutScrollPane = new JScrollPane();
     JScrollPane scrapeScrollPane = new JScrollPane();
     JScrollPane stripScrollPane = new JScrollPane();
+    JScrollPane dataMineScrollPane = new JScrollPane();
 
     JPanel aboutPanel = new JPanel();
     JPanel scrapePanel = new JPanel();
     JPanel stripPanel = new JPanel();
-
+    JPanel dataMinePanel = new JPanel();
 
     frame.getContentPane().add(tabbedPane, BorderLayout.CENTER);
     tabbedPane.setFont(new Font("", Font.PLAIN,16));
     tabbedPane.addTab("About", null, aboutScrollPane, null);
     tabbedPane.addTab("Scrape", null, scrapeScrollPane, null);
     tabbedPane.addTab("Strip/Optimize", null, stripScrollPane, null);
+    tabbedPane.addTab("Data Mining", null, dataMineScrollPane, null);
 
     aboutScrollPane.setViewportView(aboutPanel);
     scrapeScrollPane.setViewportView(scrapePanel);
     stripScrollPane.setViewportView(stripPanel);
+    dataMineScrollPane.setViewportView(dataMinePanel);
 
     // Adding padding for aesthetics
     aboutPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
     scrapePanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
     stripPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+    dataMinePanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
     setScrollSpeed(aboutScrollPane,  20, 15);
     setScrollSpeed(scrapeScrollPane, 20, 15);
     setScrollSpeed(stripScrollPane,  20, 15);
-
+    setScrollSpeed(dataMineScrollPane,  20, 15);
 
     /*
      * About tab
@@ -361,6 +365,31 @@ public class StripperWindow {
 
     //TODO add jlabel "OR" here
     //TODO add file chooser here
+
+    /*
+     * Data Mining tab
+     */
+    if (Scraper.gameDataAvailable) {
+      dataMinePanel.setLayout(new BoxLayout(dataMinePanel, BoxLayout.Y_AXIS));
+      addSettingsHeader(dataMinePanel, "Pull stuff out of rsc content files");
+      dataMinePanel.setLayout(new BoxLayout(dataMinePanel, BoxLayout.Y_AXIS));
+      dataMinePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+      addButton("Dump World Map", dataMinePanel, Component.LEFT_ALIGNMENT)
+              .addActionListener(
+                      new ActionListener() {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                          Scraper.dumpWorldMap("worldMap");
+                        }
+                      }
+              );
+    } else {
+      dataMinePanel.setLayout(new BoxLayout(dataMinePanel, BoxLayout.Y_AXIS));
+      addSettingsHeader(dataMinePanel, "You need the rsc 'content' files to use this feature");
+      dataMinePanel.setLayout(new BoxLayout(dataMinePanel, BoxLayout.Y_AXIS));
+      dataMinePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    }
   }
 
   private void scrapeButtonAction(JTextField replayDirectoryTextField) {
