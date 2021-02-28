@@ -160,6 +160,16 @@ public class ScraperProcessor implements Runnable {
         if (before == after)
             return before;
 
+        // Depleted Ores
+        if (after == 98)
+            return before;
+        else if (before == 98)
+            return after;
+        if (after == 99)
+            return before;
+        else if (before == 99)
+            return after;
+
         if (after == 4) // Treestump
             return before;
         else if (before == 4)
