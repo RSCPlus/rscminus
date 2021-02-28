@@ -63,7 +63,10 @@ public class JGameData {
     public static short terrainWallDiagonal[][][][];
     public static short terrainHeight[][][][];
     public static short terrainColor[][][][];
+    public static short terrainDecoration[][][][];
+    public static short terrainDirection[][][][];
     public static int terrainColorPalette[];
+    public static int terrainDecorationPalette[];
 
     public static int method307(int var0, int var2, int var3) {
         //return -(var0 / 8) + -(var2 / 8 * 1024) + (-1 - var3 / 8 * 32);
@@ -301,6 +304,34 @@ public class JGameData {
         for (int i = 0; i < tileCount; i++)
             tileAdjacent[i] = integer.readUnsignedByte();
 
+        // Populate tile decoration palette
+        terrainDecorationPalette = new int[tileCount];
+        terrainDecorationPalette[0] = 0x808080FF; // Gray paths
+        terrainDecorationPalette[1] = 0x5483DAFF; // Water
+        terrainDecorationPalette[2] = 0xE0651BFF; // Indoors
+        terrainDecorationPalette[3] = 0xE0651BFF; // Docks
+        terrainDecorationPalette[4] = 0x808080FF; // Castles
+        terrainDecorationPalette[5] = 0xE82D31FF; // Red Indoors
+        terrainDecorationPalette[6] = 0x366074FF; // Dirty Water
+        terrainDecorationPalette[7] = 0x000000FF; // Entrances
+        terrainDecorationPalette[8] = 0xC1C1C1FF; // Cliffs
+        terrainDecorationPalette[9] = 0x000000FF; // More Entrances
+        terrainDecorationPalette[10] = 0xD76417FF; // Lava
+        terrainDecorationPalette[11] = 0xD76417FF; // More Bridges
+        terrainDecorationPalette[12] = 0x5483DAFF; // Blue Indoors
+        terrainDecorationPalette[13] = 0x808080FF; // Even More Entrances
+        terrainDecorationPalette[14] = 0x502F16FF; // Brown Indoors
+        terrainDecorationPalette[15] = 0x000000FF; // Black Indoors
+        terrainDecorationPalette[16] = 0xF2F2F2FF; // White Indoors
+        terrainDecorationPalette[17] = 0x000000FF; // Black Underground
+        terrainDecorationPalette[18] = 0x000000FF; // More Black Underground
+        terrainDecorationPalette[19] = 0x000000FF; // Even Even More Entrances
+        terrainDecorationPalette[20] = 0x000000FF; // Unknown, some agility logs
+        terrainDecorationPalette[21] = 0x000000FF; // TODO: Find this!
+        terrainDecorationPalette[22] = 0x8E460BFF; // Dirt
+        terrainDecorationPalette[23] = 0x8E460BFF; // Brown Cliffs
+        terrainDecorationPalette[24] = 0x8E460BFF; // Ship Floors
+
         string.close();
         integer.close();
 
@@ -339,6 +370,8 @@ public class JGameData {
         terrainWallDiagonal = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
         terrainHeight = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
         terrainColor = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+        terrainDecoration = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
+        terrainDirection = new short[maxRegionWidth][maxRegionHeight][Game.REGION_FLOORS][Game.REGION_SIZE];
 
         // Read content6 (landscape)
         if (!landscapeContent.open("content6_ffffffffe997514b"))
@@ -373,62 +406,61 @@ public class JGameData {
 
         JContentFile map = landscape.unpack(mapName + ".hei");
 
-        if (map == null)
-            return false;
+        if (map != null) {
+            // Load height
+            int prevHeight = 0;
+            int index = 0;
+            while (index < Game.REGION_SIZE) {
+                int data = map.readUnsignedByte();
+                if (data < 128) {
+                    prevHeight = data;
+                    terrainHeight[x][y][floor][index++] = (short) data;
+                }
 
-        // Load height
-        int prevHeight = 0;
-        int index = 0;
-        while (index < Game.REGION_SIZE) {
-            int data = map.readUnsignedByte();
-            if (data < 128) {
-                prevHeight = data;
-                terrainHeight[x][y][floor][index++] = (byte)data;
+                if (data >= 128) {
+                    for (int j = 0; j < data - 128; ++j)
+                        terrainHeight[x][y][floor][index++] = (short) prevHeight;
+                }
             }
 
-            if (data >= 128) {
-                for (int j = 0; j < data - 128; ++j)
-                    terrainHeight[x][y][floor][index++] = (byte)prevHeight;
+            prevHeight = 64;
+
+            for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
+                for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
+                    int posIndex = Game.REGION_WIDTH * posY + posX;
+                    prevHeight = 127 & terrainHeight[x][y][floor][posIndex] + prevHeight;
+                    terrainHeight[x][y][floor][posIndex] = (short) (prevHeight * 2);
+                }
             }
+
+            // Load color
+            prevHeight = 0;
+            index = 0;
+            while (index < Game.REGION_SIZE) {
+                int data = map.readUnsignedByte();
+                if (data < 128) {
+                    prevHeight = data;
+                    terrainColor[x][y][floor][index++] = (short) data;
+                }
+
+                if (data >= 128) {
+                    for (int j = 0; j < data - 128; ++j)
+                        terrainColor[x][y][floor][index++] = (short) prevHeight;
+                }
+            }
+
+            prevHeight = 35;
+
+            for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
+                for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
+                    int posIndex = Game.REGION_WIDTH * posY + posX;
+                    prevHeight = 127 & terrainColor[x][y][floor][posIndex] + prevHeight;
+                    terrainColor[x][y][floor][posIndex] = (short) (prevHeight * 2);
+                }
+            }
+
+            map.close();
         }
-
-        prevHeight = 64;
-
-        for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
-            for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
-                int posIndex = Game.REGION_WIDTH * posY + posX;
-                prevHeight = 127 & terrainHeight[x][y][floor][posIndex] + prevHeight;
-                terrainHeight[x][y][floor][posIndex] = (byte)(prevHeight * 2);
-            }
-        }
-
-        // Load color
-        prevHeight = 0;
-        index = 0;
-        while (index < Game.REGION_SIZE) {
-            int data = map.readUnsignedByte();
-            if (data < 128) {
-                prevHeight = data;
-                terrainColor[x][y][floor][index++] = (short)data;
-            }
-
-            if (data >= 128) {
-                for (int j = 0; j < data - 128; ++j)
-                    terrainColor[x][y][floor][index++] = (short)prevHeight;
-            }
-        }
-
-        prevHeight = 35;
-
-        for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
-            for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
-                int posIndex = Game.REGION_WIDTH * posY + posX;
-                prevHeight = 127 & terrainColor[x][y][floor][posIndex] + prevHeight;
-                terrainColor[x][y][floor][posIndex] = (short)(prevHeight * 2);
-            }
-        }
-
-        map.close();
 
         map = content.unpack(mapName + ".dat");
         if (map == null)
@@ -478,36 +510,27 @@ public class JGameData {
         }
 
         prevValue = 0;
-        for (int i = 0; i < Game.REGION_SIZE; i++) {
+        int index = 0;
+        while (index < Game.REGION_SIZE) {
             int tileDecoration = map.readUnsignedByte();
             if (tileDecoration >= 128) {
-                for (int i2 = 0; i2 < tileDecoration - 128; i2++) {
-                    if (prevValue > 0) {
-                        regionCollisionMask[x][y][floor][i] |= (JGameData.tileAdjacent[prevValue - 1] != 0) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
-                        // Two floors?
-                        //regionCollisionMask[x][y][floor][i] |= (JGameData.tileType[prevValue - 1] == 2) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
-                    }
-                    i++;
+                for (int i2 = 0; i2 < tileDecoration - 128; ++i2) {
+                    terrainDecoration[x][y][floor][index++] = (short)prevValue;
                 }
-                i--;
             } else {
-                if (tileDecoration > 0) {
-                    regionCollisionMask[x][y][floor][i] |= (JGameData.tileAdjacent[tileDecoration - 1] != 0) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
-                    // Two floors?
-                    //regionCollisionMask[x][y][floor][i] |= (JGameData.tileType[tileDecoration - 1] == 2) ? Game.COLLISION_TILE : Game.COLLISION_NONE;
-                }
+                terrainDecoration[x][y][floor][index++] = (short)tileDecoration;
                 prevValue = tileDecoration;
             }
         }
 
-        for (int i = 0; i < Game.REGION_SIZE; i++) {
+        index = 0;
+        while (index < Game.REGION_SIZE) {
             int tileDirection = map.readUnsignedByte();
             if (tileDirection >= 128) {
-                for (int i2 = 0; i2 < tileDirection - 128; i2++)
-                    regionDirection[x][y][floor][i++] = 0;
-                i--;
+                for (int i2 = 0; i2 < tileDirection - 128; ++i2)
+                    terrainDirection[x][y][floor][index++] = 0;
             } else {
-                regionDirection[x][y][floor][i] = (byte)tileDirection;
+                terrainDirection[x][y][floor][index++] = (short)tileDirection;
             }
         }
 

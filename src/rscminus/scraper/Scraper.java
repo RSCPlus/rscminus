@@ -384,6 +384,71 @@ public class Scraper {
         ipFoundCount = 0;
     }
 
+    public static int rasterWorldTileWall(int x, int y, int wallEastWest, int wallNorthSouth, int wallDiagonal, int pixel) {
+        // Northwest
+        if (wallDiagonal >= 12000 && wallDiagonal < 48000 && JGameData.boundaryPassable[wallDiagonal - 12001]) {
+            if (x == 0 && y == 0 ||
+                x == 1 && y == 1 ||
+                x == 2 && y == 2)
+                return 0xBABABAFF;
+        }
+
+        // Northeast
+        if (wallDiagonal > 0 && wallDiagonal < 12000 && JGameData.boundaryPassable[wallDiagonal - 1]) {
+            if (x == 0 && y == 2 ||
+                x == 1 && y == 1 ||
+                x == 2 && y == 0)
+                return 0xBABABAFF;
+        }
+
+        // East/West
+        if (wallEastWest > 0 && JGameData.boundaryPassable[wallEastWest - 1]) {
+            if (y == 0)
+                return 0xBABABAFF;
+        }
+
+        // North/South
+        if (wallNorthSouth > 0 && JGameData.boundaryPassable[wallNorthSouth - 1]) {
+            if (x == 2)
+                return 0xBABABAFF;
+        }
+
+        return pixel;
+    }
+
+    public static int processAdjacentTile(int pixel, int tileX, int tileY, int origX, int origY, int rasterX, int rasterY, int floor, boolean isDecoration)
+    {
+        int chunkOrigX = origX / Game.REGION_WIDTH;
+        int chunkOrigY = origY / Game.REGION_HEIGHT;
+        int localOrigX = origX - (chunkOrigX * Game.REGION_WIDTH);
+        int localOrigY = origY - (chunkOrigY * Game.REGION_HEIGHT);
+        int chunkX = tileX / Game.REGION_WIDTH;
+        int chunkY = tileY / Game.REGION_HEIGHT;
+        int localX = tileX - (chunkX * Game.REGION_WIDTH);
+        int localY = tileY - (chunkY * Game.REGION_HEIGHT);
+
+        short[] terrainDecoration = JGameData.terrainDecoration[chunkOrigX][chunkOrigY][floor];
+        short[] terrainDecorationOther = JGameData.terrainDecoration[chunkX][chunkY][floor];
+
+        int mapIndex = (localOrigY * Game.REGION_WIDTH) + localOrigX;
+        int mapIndexOther = (localY * Game.REGION_WIDTH) + localX;
+
+        int decoration = terrainDecoration[mapIndex];
+
+        return pixel;
+    }
+
+    public static int rasterWorldTile(int pixel, int tileX, int tileY, int rasterX, int rasterY, int floor, boolean isDecoration) {
+        // Blend adjacent tiles
+
+        // East
+        int ret = processAdjacentTile(pixel, tileX + 1, tileY, tileX, tileY, rasterX, rasterY, floor, isDecoration);
+        if (ret != pixel)
+            return ret;
+
+        return pixel;
+    }
+
     public static void dumpWorldMap(String fname) {
         if (!gameDataAvailable)
             return;
@@ -394,8 +459,8 @@ public class Scraper {
             int halfTileSize = tileSize / 2;
             int maxRegionWidth = Game.WORLD_WIDTH / Game.REGION_WIDTH;
             int maxRegionHeight = Game.WORLD_HEIGHT / Game.REGION_HEIGHT;
-            int width = (maxRegionWidth * Game.REGION_WIDTH) * tileSize;
-            int height = (maxRegionHeight * Game.REGION_HEIGHT) * tileSize;
+            int height = (maxRegionWidth * Game.REGION_WIDTH) * tileSize;
+            int width = (maxRegionHeight * Game.REGION_HEIGHT) * tileSize;
             int stride = 4;
             byte[] data = new byte[width * height * stride];
 
@@ -404,29 +469,36 @@ public class Scraper {
                     int[] regionMapData = JGameData.regionMap[x][y][floor];
                     short[] terrainWallNorthSouth = JGameData.terrainWallNorthSouth[x][y][floor];
                     short[] terrainWallEastWest = JGameData.terrainWallEastWest[x][y][floor];
+                    short[] terrainWallDiagonal = JGameData.terrainWallDiagonal[x][y][floor];
                     short[] terrainHeight = JGameData.terrainHeight[x][y][floor];
                     short[] terrainColor = JGameData.terrainColor[x][y][floor];
+                    short[] terrainDecoration = JGameData.terrainDecoration[x][y][floor];
+                    short[] terrainDirection = JGameData.terrainDirection[x][y][floor];
                     int chunkX = x * Game.REGION_WIDTH;
                     int chunkY = y * Game.REGION_HEIGHT;
 
                     for (int posX = 0; posX < Game.REGION_WIDTH; posX++) {
                         for (int posY = 0; posY < Game.REGION_HEIGHT; posY++) {
-                            int worldPosX = chunkX + posX;
-                            int worldPosY = chunkY + posY;
+                            int worldPosX = Game.WORLD_WIDTH - (chunkX + posY);
+                            int worldPosY = chunkY + posX;
                             int mapIndex = (posY * Game.REGION_WIDTH) + posX;
 
                             // Set tile color
                             int pixel;
                             if (floor == 0)
-                                pixel = 0x1B3C7BFF; // Ocean
+                                pixel = 0x00000000; // Ocean
                             else
-                                pixel = 0x000000FF; // Blackness
+                                pixel = 0x00000000; // Blackness
 
                             int tileHeight = 0;
                             int tileColor = 0;
+                            int tileDecoration = 0;
+                            int tileDirection = 0;
                             if (regionMapData != null) {
                                 tileHeight = terrainHeight[mapIndex];
                                 tileColor = terrainColor[mapIndex];
+                                tileDecoration = terrainDecoration[mapIndex];
+                                tileDirection = terrainDirection[mapIndex];
                             }
 
                             for (int rasterPosX = 0; rasterPosX < tileSize; rasterPosX++)
@@ -436,30 +508,28 @@ public class Scraper {
                                     // Use map tile color instead
                                     if (regionMapData != null)
                                     {
-                                        // Handle wall tiles
-                                        boolean wallRendered = false;
-                                        if (terrainWallNorthSouth[mapIndex] > 0) {
-                                            if (rasterPosY == halfTileSize)
-                                                wallRendered = true;
-                                        } else if (terrainWallEastWest[mapIndex] > 0) {
-                                            if (rasterPosX == halfTileSize)
-                                                wallRendered = true;
-                                        }
+                                        if (floor == 0 || floor == 3)
+                                            pixel = rasterWorldTile(JGameData.terrainColorPalette[tileColor], worldPosX, worldPosY, rasterPosX, rasterPosY, floor, false);
+                                        if (tileDecoration != 0)
+                                            pixel = rasterWorldTile(JGameData.terrainDecorationPalette[tileDecoration - 1], worldPosX, worldPosY, rasterPosX, rasterPosY, floor, true);
 
-                                        // Set terrain tile
-                                        if (!wallRendered) {
-                                            {
-                                                pixel = JGameData.terrainColorPalette[tileColor];
-                                            }
-                                        } else {
-                                            pixel = 0x616161FF;
-                                        }
+                                        pixel = rasterWorldTileWall(rasterPosX, rasterPosY, terrainWallEastWest[mapIndex], terrainWallNorthSouth[mapIndex], terrainWallDiagonal[mapIndex], pixel);
+
+                                        float[] hsv = new float[3];
+                                        Color.RGBtoHSB((pixel >> 24) & 0xFF, (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF, hsv);
+
+                                        float ratio = tileHeight / 255.0f;
+                                        hsv[0] = 1.0f;
+                                        hsv[1] = 1.0f;
+                                        hsv[2] = hsv[2] * 0.3f * ratio;
+                                        pixel = Color.HSBtoRGB(hsv[0], hsv[1], hsv[2]);
+                                        pixel = (pixel << 8) | 0xFF;
                                     }
 
+                                    // Render background color
                                     int rasterX = worldPosX * tileSize + rasterPosX;
                                     int rasterY = worldPosY * tileSize + rasterPosY;
                                     int rasterIndex = ((rasterY * width) + rasterX) * stride;
-
                                     data[rasterIndex] = (byte) ((pixel >> 24) & 0xFF);
                                     data[rasterIndex + 1] = (byte) ((pixel >> 16) & 0xFF);
                                     data[rasterIndex + 2] = (byte) ((pixel >> 8) & 0xFF);
