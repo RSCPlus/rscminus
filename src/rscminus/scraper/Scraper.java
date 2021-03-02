@@ -519,9 +519,8 @@ public class Scraper {
                                         Color.RGBtoHSB((pixel >> 24) & 0xFF, (pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF, hsv);
 
                                         float ratio = tileHeight / 255.0f;
-                                        hsv[0] = 1.0f;
-                                        hsv[1] = 1.0f;
-                                        hsv[2] = hsv[2] * 0.3f * ratio;
+                                        if (pixel != 0x000000FF)
+                                            hsv[2] = 0.3f + 0.2f * ratio;
                                         pixel = Color.HSBtoRGB(hsv[0], hsv[1], hsv[2]);
                                         pixel = (pixel << 8) | 0xFF;
                                     }
